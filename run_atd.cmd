@@ -27,7 +27,15 @@ if errorlevel 1 goto failure
 if errorlevel 1 goto failure
 %PY% tools\evaluate_atd.py --model-dir outputs\atds_ensemble --mode test --legacy-dir ""
 if errorlevel 1 goto failure
-%PY% tools\evaluate_atd.py --model-dir outputs\atds_ensemble --mode competition --name Goalorithm
+%PY% tools\train_atd.py --out-dir outputs\atds_refit --refit-from outputs\atds_ensemble
+if errorlevel 1 goto failure
+%PY% tools\train_atd.py --out-dir outputs\atds_refit_s2 --refit-from outputs\atds_ensemble --set training_seed=20261121
+if errorlevel 1 goto failure
+%PY% tools\train_atd.py --out-dir outputs\atds_refit_s3 --refit-from outputs\atds_ensemble --set training_seed=20261122
+if errorlevel 1 goto failure
+%PY% tools\ensemble_atd.py atds_refit atds_refit_s2 atds_refit_s3 --out-dir outputs\atds_refit_ensemble --decoder-from outputs\atds_ensemble
+if errorlevel 1 goto failure
+%PY% tools\evaluate_atd.py --model-dir outputs\atds_refit_ensemble --mode competition --name Goalorithm
 if errorlevel 1 goto failure
 echo Done: outputs\Goalorithm.csv
 pause

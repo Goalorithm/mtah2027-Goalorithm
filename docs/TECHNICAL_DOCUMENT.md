@@ -2,7 +2,7 @@
 
 More than a Hack 2027, Phase 1: Ball Possession. Team Goalorithm. 17 November 2026.
 
-**Submitted file:** `Goalorithm.csv`, 199,319 rows, SHA-256 `05211b9d2c535a7d52e213a450c673c92e90db1fdc4051055cb571f3c3df5748`.
+**Submitted file:** `Goalorithm.csv`, 199,319 rows, SHA-256 `10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`.
 
 **In one paragraph.** The competition tracking is automatic: the organisers report the ball
 missing on 41% of graded frames and about 20.5 tracked objects per frame. Models fitted on the
@@ -58,7 +58,9 @@ the providers define them.
 - **Decoder:** Viterbi over the three states, transitions from the IDSSE and Metrica fitting
   references; emission scale and event weight chosen on validation games of the three sources,
   each source weighted equally.
-- **Ensemble:** three seeds, probabilities averaged before decoding.
+- **Ensemble and refit:** three seeds fix the epoch count and the decoder on validation; three
+  seeds are then refitted on fitting plus validation games with both fixed, and their
+  probabilities are averaged before decoding.
 
 ## 2. Assets used and dropped
 
@@ -104,13 +106,13 @@ tracking (middle of every range). Higher is better.
 
 | Check | spellF1 | macroF1 |
 | --- | ---: | ---: |
-| IDSSE test games J03WMX, J03WN1 (2 games, 4 copies) | 0.707 | 0.930 |
-| SoccerTrack v2 match 117092, never fitted or selected on | 0.755 | 0.930 |
-| Validation (decoder choice): IDSSE / Metrica / SoccerTrack | 0.743 / 0.737 / 0.820 | |
+| IDSSE test games J03WMX, J03WN1 (2 games, 4 copies) | 0.714 | 0.933 |
+| SoccerTrack v2 match 117092, never fitted or selected on | 0.756 | 0.926 |
+| Validation of the selection ensemble (decoder choice): IDSSE / Metrica / SoccerTrack | 0.743 / 0.737 / 0.820 | |
 
 A model of the same kind fitted on clean, unmodified IDSSE tracking scored 0.385 on IDSSE test
 copies re-measured in the same way, which is why the re-measurement is the core of the method. Public 5-minute window, scored once after the file was built as a correctness
-check: spellF1 0.633 (macroF1 0.922).
+check: spellF1 0.622 (macroF1 0.911).
 
 ## 6. Limitations
 
@@ -136,7 +138,7 @@ pip install -r requirements-team.txt
 pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 pip install -e .
 python tools/restore_release.py
-python tools/evaluate_atd.py --model-dir outputs/atds_ensemble --mode competition --name Goalorithm
+python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
 ```
 
 This writes `outputs/Goalorithm.csv` and prints its SHA-256. The file is always computed on CPU

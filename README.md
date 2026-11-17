@@ -53,7 +53,7 @@ pip install -r requirements-team.txt
 pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 pip install -e .
 python tools/restore_release.py        # released model weights -> outputs/
-python tools/evaluate_atd.py --model-dir outputs/atds_ensemble --mode competition --name Goalorithm
+python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
 ```
 
 This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
