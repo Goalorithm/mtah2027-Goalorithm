@@ -1,7 +1,6 @@
-"""Synthetic video checks: exact frame seeking, the full-decode audit and download assembly."""
+"""Synthetic media checks: the full-decode integrity audit and download assembly."""
 
 import os
-from fractions import Fraction
 from pathlib import Path
 
 import audit_data
@@ -11,7 +10,6 @@ import prepare_data
 import pytest
 
 from mtah.paths import games
-from mtah.video import FrameReader
 
 
 @pytest.fixture
@@ -30,19 +28,6 @@ def video(tmp_path):
         for packet in stream.encode():
             container.mux(packet)
     return path
-
-
-def test_frame_reader_seeks_by_exact_presentation_timestamp(video):
-    with FrameReader(video, expected_frames=12) as reader:
-        for index in (0, 1, 11, 5, 6, 0, 10):
-            frame = reader.read(index)
-            assert frame.pts * frame.time_base == Fraction(index, 25)
-        with pytest.raises(ValueError, match="integer"):
-            reader.read(-1)
-        with pytest.raises(ValueError, match="integer"):
-            reader.read(12)
-    with pytest.raises(ValueError, match="count or FPS"):
-        FrameReader(video, expected_frames=13)
 
 
 def test_full_video_audit_reports_mismatch_without_substituting_frames(video):

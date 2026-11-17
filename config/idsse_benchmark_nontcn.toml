@@ -1,0 +1,28 @@
+# Every retained non-TCN candidate on the same exposed IDSSE test games, frozen before this run.
+# Documentation only: no fitting or selection happens here, and the final model is not re-chosen.
+model_configs = [
+  "config/default.toml",
+  "config/exp_rules_v1.toml",
+  "config/exp_bm_out.toml",
+  "config/exp_bm_restart.toml",
+  "config/exp_pos_control.toml",
+  "config/exp_pos_x.toml",
+  "config/exp_hmm_v1.toml",
+  "config/exp_hmm_v2.toml",
+  "config/exp_supervised_v1.toml",
+  "config/exp_supervised_v2.toml",
+  "config/exp_supervised_v3.toml",
+  "config/exp_supervised_v4.toml",
+  "config/exp_supervised_balanced.toml",
+  "config/exp_supervised_boundary.toml",
+  "config/exp_supervised_boundary_dense.toml",
+  "config/exp_supervised_ensemble.toml",
+  "config/exp_supervised_calibrated.toml",
+  "config/exp_supervised_refit.toml",
+  "config/exp_supervised_joint.toml",
+]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+seed = 20261111
+bootstrap_draws = 500

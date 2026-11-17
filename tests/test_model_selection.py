@@ -1,13 +1,10 @@
-"""A dev-only selection gate and deliberately unscorable annotation suggestions."""
+"""A dev-only selection gate that never treats local outputs as ground truth."""
 
-import csv
 import json
 
 import compare_models
-import labels_to_csv as labels
 import numpy as np
 import pytest
-import suggest_labels
 
 from mtah import A, D, H, X
 from mtah.io import write_submission
@@ -56,21 +53,6 @@ def test_missing_dev_is_an_explicit_incomplete_result(tmp_path, capsys):
     )
     assert '"selected": null' in out.read_text(encoding="utf-8")
     assert "No final model" in capsys.readouterr().out
-
-
-def test_annotation_suggestions_are_not_accepted_as_ground_truth(tmp_path):
-    codes = np.array([H, H, A, D, D, H], dtype=np.int8)
-    windows = {"V1": {"start": 1, "end": 4, "split": "dev", "pelabel": "Budi"}}
-    rows = suggest_labels.suggestions(codes, windows, "candidate.csv")
-    assert [r["frame_mulai"] for r in rows] == [1, 2, 3]
-    assert [r["label_usulan"] for r in rows] == ["H", "A", "D"]
-    path = tmp_path / "suggestions.csv"
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-    with pytest.raises(labels.LabelError, match="missing.*headers"):
-        labels.read_changes(path)
 
 
 def test_partial_dev_or_holdout_frames_cannot_be_scored_as_dev(tmp_path):

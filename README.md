@@ -49,22 +49,39 @@ unpack the `tactical/` folder of the bundle into `data/`, or point `MTAH_DATA_DI
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements-team.txt
-pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
-pip install -e .
+python -m pip install -r requirements-team.txt
+python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e .
 python tools/restore_release.py        # released model weights -> outputs/
 python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
 ```
 
 This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
-sha256. The file is computed on CPU and the prediction is run twice and must match exactly.
-The weights in `release/atd/` were fitted on external matches only; `run_atd.cmd` refits them.
-The earlier rule/HMM baseline is still available with `python -m mtah.predict`.
+sha256 (`10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`). The file is computed
+on CPU and the prediction is run twice and must match exactly. The weights in `release/atd/`
+were fitted on external matches only; `run_atd.cmd` refits them. Method:
+[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
 
+**Alternative candidate: TCN blended with the joint tree model.** Both are trained only on
+external IDSSE matches and committed in [models/](models/README.md):
+
+```bash
+python tools/predict_temporal.py       # -> outputs/Goalorithm.csv
+```
+
+The script hides any GPU on purpose, validates the result and prints its sha256
+(`dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`); see
+[docs/Goalorithm.md](docs/Goalorithm.md). The tree model alone needs no PyTorch:
+`python -m mtah.predict --config config/final.toml` regenerates the joint-only file
+(`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`).
+
+On Windows machines where policy blocks `pip.exe`, keep the `python -m pip` form shown above.
+`python -m mtah.predict` without `--config` still reproduces the organisers' `baseline_smooth50`.
 CI checks code and baseline scoring on Windows and Linux; model accuracy requires separate evaluation.
 
-The submitted model reads two files of the bundle: `BAR-ATH_tactical_atd.xml` and
-`BAR-ATH_tactical_atd.txt` (the baseline also reads `BAR-ATH_tactical_smart_tagging.xml`). The first run parses the tracking into `cache/`
+The ATD model reads two files of the bundle: `BAR-ATH_tactical_atd.xml` and
+`BAR-ATH_tactical_atd.txt`; the HMM and rule variants also read
+`BAR-ATH_tactical_smart_tagging.xml`. The first run parses the tracking into `cache/`
 (about a minute); later runs take seconds.
 
 ## Repository layout
@@ -89,7 +106,6 @@ evaluation/ starter/ games.py   the organisers' code, unchanged (MIT licence)
 - [docs/SETUP.md](docs/SETUP.md) — menyiapkan laptop dari nol
 - [CONTRIBUTING.md](CONTRIBUTING.md) — alur kerja branch, PR, review
 - [docs/RULE_UPDATE.md](docs/RULE_UPDATE.md) — aturan terbaru dan alur pseudo-label lokal
-- [docs/PANDUAN_LABEL.md](docs/PANDUAN_LABEL.md) — arsip panduan anotasi lama, tidak digunakan
 - [docs/ATURAN_POSSESSION.md](docs/ATURAN_POSSESSION.md) — arsip buku aturan possession tim
 
 The organisers' own documents are kept as shipped: [CHALLENGE.md](CHALLENGE.md),
