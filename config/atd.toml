@@ -1,0 +1,190 @@
+# ATD-realistic workflow: external labelled games are degraded to look like the automatic
+# competition tracking before any fitting or validation. Existing models/configs are untouched.
+parent_config = "config/exp_supervised_joint.toml"  # shared 93-feature definition only
+seed = 20261120
+training_seed = 20261120
+train_games = ["J03WOH", "J03WOY", "J03WPY"]
+validation_games = ["J03WQQ", "J03WR9"]
+test_games = ["J03WMX", "J03WN1"]
+test_previous_exposure = "IDSSE test games were scored by every earlier model; not untouched"
+# Metrica supplies the competition ground truth, so one sample game is held out to validate.
+metrica_games = [1, 3]
+metrica_validation_games = [2]
+metrica_bridge = 12  # blank-ball stretches up to this many frames are not stoppages
+train_profiles = 8
+refit_profiles = 6  # per game in the final refit, to stay inside 16 GB of RAM
+validation_profiles = 2
+test_profiles = 2
+
+# Input groups. Only "atd" (automatic ball + team shape) is used. The feature code also knows
+# "video", "cut" and "touch" blocks (a second ball track, broadcast cutaways, touches of that
+# second ball); they are switched off and receive no data.
+feature_groups = ["atd"]  # no video ball and no broadcast cutaways: nothing tuned on match data
+channels = 96
+dilations = [1, 2, 4, 8, 16, 32, 64, 128]
+dropout = 0.2
+epochs = 40
+steps_per_epoch = 250
+batch_size = 8
+core_frames = 1024
+learning_rate = 0.001
+weight_decay = 0.03
+boundary_loss_weight = 0.2
+short_spell_exponent = 0.5
+boundary_weight = 1.5
+boundary_frames = 8
+validation_every = 4
+decoder_scales = [0.2, 0.3, 0.5, 1.0]
+boundary_weights = [0.0, 0.5, 0.25, 0.75]
+transition_pseudocount = 1.0
+# Profiles simulated with handled stoppage balls (round 5) live apart from the earlier ones.
+cache_dir = "atd_cache_safe"
+# Share of fitting samples drawn from the extra provider below; 0 leaves it out entirely
+# (the round-3 models in outputs/atd* were fitted that way).
+extra_train_share = 0.35
+
+# SoccerTrack v2 halves as extra fitting profiles (tools/prepare_atd_soccertrack.py).
+[soccertrack_train]
+config = "config/soccertrack.toml"
+cache_dir = "atd_cache_soccertrack_safe"
+profiles = 3        # simulated measurement profiles per half
+seed_offset = 500000
+# The provider marks contested frames. "ungraded": no fitting target there. "last_owner": the
+# competition's rule, a contested or loose ball stays with the last team that had it.
+contested = "last_owner"
+# Validation halves labelled by the competition's rule (tools/soccertrack_validation.py).
+validation_cache_dir = "atd_cache_soccertrack_validation_safe"
+validation_profiles = 2
+validation_seed_offset = 700000
+# Decoder scales tried when the ensemble's decoder is chosen on all three label sources.
+ensemble_decoder_scales = [0.1, 0.15, 0.2, 0.3, 0.5, 1.0]
+
+# Metrica Sample Game 3 (EPTS layout), pinned to the same public commit as games 1 and 2.
+[metrica_epts]
+game = 3
+directory = "data/external/metrica_sample3"
+source = "https://github.com/metrica-sports/sample-data/tree/e706dd506b360d69d9d123d5b8026e7294b13996/data/Sample_Game_3"
+
+[metrica_epts.sha256]
+metadata = "009c7dcfcb66192014917ca1559c158f612353e390eafb85f8214b06a1c7dec1"
+tracking = "570e6ce82c2d93bc92723af331d93c31110bec1d6dc0be07c6d44ca3f981d658"
+events = "28a53bfe9eaf32535362335553d517cdce0eabb588af6166009081753751f4e0"
+
+# Optional at inference: tactical ball gaps take the synchronised broadcast ball.
+[broadcast]
+refine_frames = 15
+max_median_distance_m = 3.0
+min_shared_frames = 5000
+
+[domain_audit]
+activity_window_frames = 125
+moving_team_mps = 1.8
+slow_team_mps = 1.2
+spectrum_frames = 512
+spectrum_low_hz = 0.39
+spectrum_high_hz = 0.78
+stoppage_prediction = "exp_atd_ensemble.csv"  # only to describe cutaways; never a label
+
+[team_features]
+advance_lag_frames = 5
+speed_scale_mps = 8.0
+spread_scale_m = 20.0
+fast_player_mps = 4.0
+outside_margin_m = 0.5
+outside_age_cap_frames = 750
+still_ball_mps = 1.0
+still_cap_frames = 250
+cut_age_cap_frames = 750
+
+# Explicit touches of a second ball track (tools/touch_features.py); the block is switched off.
+[team_features.touch]
+lag_frames = 3
+peak_frames = 3
+touch_mps = 3.0
+kick_mps = 8.0
+reach_m = 2.5
+age_cap_frames = 250
+strength_cap_mps = 30.0
+
+[simulation]
+velocity_lag_frames = 3
+tracked_margin_m = 7.0
+roll_frames = [8, 60]
+roll_decay = [0.90, 0.98]
+restart_rest_frames = [5, 400]
+restart_rest_share = 0.9
+return_speed_mps = [2.0, 9.0]
+return_ease = [1.0, 3.0]
+# A handled stoppage ball (see stoppage_handled) wanders at this pace instead of lying still.
+# Calibrated on BAR-ATH without labels: tracked stoppage balls move below 1 m/s on 37% of frames
+# (quartiles 0.5 / 1.6 / 3.6 m/s); a ball left lying gave 70% and 0.2 / 0.4 / 1.3 m/s.
+stroll_speed_mps = [0.8, 6.0]
+stroll_smooth_frames = 25
+lost_after_stop_frames = 40
+reacquire_just_before = 0.5
+just_before_frames = 12
+reacquire_early = 0.25
+early_frames = 125
+late_frames = [5, 60]
+lost_before_stop = 0.3
+lost_before_frames = 30
+live_gap_spread = 0.7
+low_pass_order = 4
+low_pass_minimum_frames = 30
+player_loss_spread = 0.8
+outage_frames = [25, 250]
+outage_share = [0.3, 0.9]
+long_stoppage_frames = 500
+stoppage_outage_span = [0.3, 1.0]
+# Broadcast cutaways around a stoppage (timings measured on BAR-ATH against predictions).
+cut_minimum_frames = 25
+cut_live_median_frames = 75.0
+cut_live_spread = 0.5
+cut_delay_spread = 55.0
+cut_early_frames = [60, 350]
+cut_early_share = 0.6
+cut_overrun_mean = 0.0
+cut_overrun_spread = 45.0
+cut_break_frames = [40, 200]
+
+# Training draws every [low, high] range per profile so no single guess is baked in.
+[simulation.train]
+stoppage_missing = [0.35, 0.8]
+stoppage_visible = [0.1, 0.5]
+stoppage_carried = [0.3, 0.9]
+stoppage_handled = [0.55, 0.95]
+outside_visible_margin_m = [0.5, 7.0]
+live_gap_fraction = [0.02, 0.22]
+live_gap_median_frames = [60.0, 220.0]
+low_pass_hz = [0.55, 0.85]
+ball_noise_m = [0.0, 0.03]
+player_loss_fraction = [0.01, 0.08]
+player_loss_median_frames = [40.0, 120.0]
+outage_per_minute = [0.0, 0.8]
+stoppage_outage = [0.0, 0.6]
+cut_stoppage_share = [0.65, 1.0]
+cut_delay_frames = [45.0, 90.0]
+cut_early_return = [0.2, 0.6]
+cut_live_fraction = [0.005, 0.07]
+cut_break = [0.2, 0.8]
+
+# Fixed mid-range values for validation/test profiles.
+[simulation.benchmark]
+stoppage_missing = 0.7
+stoppage_visible = 0.18
+stoppage_carried = 0.6
+stoppage_handled = 0.8
+outside_visible_margin_m = 1.0
+live_gap_fraction = 0.1
+live_gap_median_frames = 130.0
+low_pass_hz = 0.66
+ball_noise_m = 0.0
+player_loss_fraction = 0.035
+player_loss_median_frames = 70.0
+outage_per_minute = 0.3
+stoppage_outage = 0.3
+cut_stoppage_share = 0.82
+cut_delay_frames = 65.0
+cut_early_return = 0.38
+cut_live_fraction = 0.035
+cut_break = 0.5

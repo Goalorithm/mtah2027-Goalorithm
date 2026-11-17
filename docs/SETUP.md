@@ -96,15 +96,12 @@ Artinya pipeline tim menghasilkan label yang sama persis dengan baseline panitia
 alignment frame, dan fitur sudah benar. Kalau ada baris FAIL, ikuti petunjuk di bawahnya, atau
 tempel output-nya di issue "Setup laptop".
 
-## 6. VS Code dan Claude Code
+## 6. VS Code
 
 1. Buka repo: `code .`
 2. Klik **Install** saat VS Code menawarkan ekstensi yang direkomendasikan: Python, Jupyter,
-   Ruff, dan Claude Code.
+   dan Ruff.
 3. `Ctrl+Shift+P` → *Python: Select Interpreter* → pilih `.venv`.
-4. Claude Code: buka panelnya dan login. Claude Code otomatis membaca `CLAUDE.md` di root repo,
-   yang berisi aturan proyek ini (jangan commit data, angka di `config/`, satu ide per PR, dan
-   seterusnya).
 
 Kode hasil bantuan AI tetap harus dipahami oleh yang membuat PR, karena reviewer akan bertanya.
 

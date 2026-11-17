@@ -26,6 +26,12 @@ See [docs/HMM_V2.md](docs/HMM_V2.md),
 [docs/DOMAIN_IMPROVEMENT.md](docs/DOMAIN_IMPROVEMENT.md) for the retained research methods.
 `run_all_tech.cmd`, followed by the optional temporal/domain workflows, rebuilds external models.
 
+**Submitted model:** an ATD-realistic temporal convolutional network fitted only on external
+matches (IDSSE, Metrica samples, SoccerTrack v2) that have been re-measured to behave like
+automatic tracking. It reads only the provided automatic tracking: no video, no broadcast
+recording, no Smart Tagging. Method, training data and limitations:
+[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
+
 The video-ball pipeline, its dependent models and training of an HMM on BAR-ATH have been
 excluded from this branch's current file tree. The publication guard reads
 [.github/excluded-paths.txt](.github/excluded-paths.txt); run
@@ -46,28 +52,36 @@ source .venv/bin/activate              # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-team.txt
 python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -e .
+python tools/restore_release.py        # released model weights -> outputs/
+python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
+```
+
+This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
+sha256 (`10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`). The file is computed
+on CPU and the prediction is run twice and must match exactly. The weights in `release/atd/`
+were fitted on external matches only; `run_atd.cmd` refits them. Method:
+[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
+
+**Alternative candidate: TCN blended with the joint tree model.** Both are trained only on
+external IDSSE matches and committed in [models/](models/README.md):
+
+```bash
 python tools/predict_temporal.py       # -> outputs/Goalorithm.csv
 ```
 
-The final model is a TCN blended with the joint tree model, both trained only on external IDSSE
-matches and committed in [models/](models/README.md), so no download or training is needed. The
-script hides any GPU on purpose: CUDA arithmetic can differ from CPU, and the file has to come out
-identical. It validates the result with the organisers' checks and prints its sha256; the
-submitted file is `dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`. To rebuild the checkpoints from the pinned IDSSE data first, follow
-[models/README.md](models/README.md). The approach is described in the technical document,
-[docs/Goalorithm.md](docs/Goalorithm.md).
-
-The tree model alone needs no PyTorch: `python -m mtah.predict --config config/final.toml`
-regenerates the earlier joint-only file
+The script hides any GPU on purpose, validates the result and prints its sha256
+(`dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`); see
+[docs/Goalorithm.md](docs/Goalorithm.md). The tree model alone needs no PyTorch:
+`python -m mtah.predict --config config/final.toml` regenerates the joint-only file
 (`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`).
 
 On Windows machines where policy blocks `pip.exe`, keep the `python -m pip` form shown above.
 `python -m mtah.predict` without `--config` still reproduces the organisers' `baseline_smooth50`.
 CI checks code and baseline scoring on Windows and Linux; model accuracy requires separate evaluation.
 
-Only three files of the bundle are read: `BAR-ATH_tactical_atd.xml`, `BAR-ATH_tactical_atd.txt`
-and `BAR-ATH_tactical_smart_tagging.xml` (the final model ignores the tagging; the HMM and rule
-variants use it). The first run parses the tracking into `cache/`
+The ATD model reads two files of the bundle: `BAR-ATH_tactical_atd.xml` and
+`BAR-ATH_tactical_atd.txt`; the HMM and rule variants also read
+`BAR-ATH_tactical_smart_tagging.xml`. The first run parses the tracking into `cache/`
 (about a minute); later runs take seconds.
 
 ## Repository layout
