@@ -1,0 +1,36 @@
+# Integrated Tech 2+3 candidate; kept separately from the Tech 1 HMM and baseline.
+team_name = "Goalorithm"
+[dead_ball]
+method = "set_piece_restart"
+margin_m = 0.5
+outside_confirm_frames = 2
+inside_confirm_frames = 3
+outside_memory_frames = 125
+include_missing = true
+window = 50
+max_gap = 25
+max_ball_speed_mps = 45.0
+restart_pre_frames = 75
+restart_post_frames = 25
+stopped_min_frames = 10
+restart_confirm_frames = 3
+restart_ball_mps = 3.0
+slow_player_mps = 1.0
+still_ball_mps = 0.75
+restart_types = ["Throw-in", "Corner Kick", "Goal Kick", "Free Kick", "Kick Off (Start)", "Kick Off (After Goal)"]
+[possession]
+method = "hold_to_switch_x"
+min_frames = 15
+initial_min_frames = 3
+max_control_gap_frames = 2
+control_m = 2.5
+advantage_m = 0.5
+control_ball_mps = 15.0
+backdate_switch = true
+max_gap = 25
+max_ball_speed_mps = 45.0
+margin_m = 0.5
+abstain_min_gap_frames = 3
+abstain_max_gap_frames = 25
+transition_guard_frames = 15
+max_abstain_fraction = 0.03

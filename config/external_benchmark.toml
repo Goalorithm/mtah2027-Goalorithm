@@ -1,0 +1,21 @@
+# Frozen other-game benchmark. No candidate fitting/tuning takes place in this tool.
+[source]
+repository = "https://github.com/metrica-sports/sample-data"
+commit = "e706dd506b360d69d9d123d5b8026e7294b13996"
+games = [1, 2]
+fps = 25
+pitch_m = [105.0, 68.0]
+time_tolerance_s = 0.000001
+ball_tolerance_normalized = 0.000000001
+
+[source.sha256]
+"README.md" = "fa4b178e62c4d3559e13b6d3a4fdd42e45293461c2ab656e05a13360a6adcbcf"
+"Sample_Game_1_RawEventsData.csv" = "097dda6345e17390dca095331458fd00e47960c480c76f4356fd4edf2575ef05"
+"Sample_Game_1_RawTrackingData_Home_Team.csv" = "0a3d0eff7785950379c587d3597b86a2d91c2492281b4652e1abb97c99b6b364"
+"Sample_Game_1_RawTrackingData_Away_Team.csv" = "0a3df68a92af0290ede472e62de3b6489ddee29223da09bdf0cf76c8e0ab0618"
+"Sample_Game_2_RawEventsData.csv" = "edf31a18599265b77a8baf150f2ce6d89456fb0324b62ea7a391229657a619ba"
+"Sample_Game_2_RawTrackingData_Home_Team.csv" = "3f9990ac204b07133e4202441d6fcbb386897c7c7f81e1bc3ce4d35bc8644694"
+"Sample_Game_2_RawTrackingData_Away_Team.csv" = "aa639f40762eade46c389020fe4458266b5ba14027b1e96e22e75db62803718b"
+
+[benchmark]
+model_configs = ["config/default.toml", "config/exp_hmm_v2.toml", "config/exp_bm_out.toml", "config/exp_bm_restart.toml", "config/exp_pos_control.toml", "config/exp_pos_x.toml", "config/exp_rules_v1.toml", "config/exp_supervised_v1.toml", "config/exp_supervised_v2.toml", "config/exp_supervised_v3.toml", "config/exp_supervised_v4.toml", "config/exp_supervised_boundary.toml", "config/exp_supervised_balanced.toml", "config/exp_supervised_joint.toml"]

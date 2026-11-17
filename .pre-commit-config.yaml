@@ -1,0 +1,26 @@
+# Runs on every `git commit` once installed with:  pre-commit install
+# Its main job: make it impossible to commit the match data by accident. The repository becomes
+# public at submission time, and anything ever committed stays in the git history forever.
+repos:
+  - repo: local
+    hooks:
+      - id: no-match-data
+        name: tidak boleh commit data pertandingan (data/, cache/, video)
+        language: fail
+        entry: "File ini data pertandingan atau turunannya dan tidak boleh di-commit:"
+        files: '^(data/(?!README\.md$)|cache/|outputs/)|\.(mp4|npz|parquet)$'
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=2500"]
+      - id: check-merge-conflict
+      - id: check-toml
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: '^(src|tools|tests|scripts)/'
+      - id: ruff-format
+        files: '^(src|tools|tests|scripts)/'

@@ -1,0 +1,23 @@
+# Tech 2, Soal 1+2. Tags locate a search, tracking confirms the restart.
+team_name = "Goalorithm"
+[dead_ball]
+method = "set_piece_restart"
+margin_m = 0.5
+outside_confirm_frames = 2
+inside_confirm_frames = 3
+outside_memory_frames = 125
+include_missing = true
+window = 50
+max_gap = 25
+max_ball_speed_mps = 45.0
+restart_pre_frames = 75
+restart_post_frames = 25
+stopped_min_frames = 10
+restart_confirm_frames = 3
+restart_ball_mps = 3.0
+slow_player_mps = 1.0
+still_ball_mps = 0.75
+restart_types = ["Throw-in", "Corner Kick", "Goal Kick", "Free Kick", "Kick Off (Start)", "Kick Off (After Goal)"]
+[possession]
+method = "nearest_majority"
+window = 50

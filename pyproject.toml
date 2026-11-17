@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mtah"
+version = "0.1.0"
+description = "Frame-level ball possession for More than a Hack 2027"
+requires-python = ">=3.11,<3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Organiser files are kept exactly as upstream ships them, so `git pull upstream main` never
+# conflicts. Only our own code is linted.
+extend-exclude = ["evaluation", "starter", "games.py", "*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

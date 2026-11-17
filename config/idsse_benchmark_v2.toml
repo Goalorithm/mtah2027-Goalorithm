@@ -1,0 +1,7 @@
+# Re-evaluation after v1 robustness audit; not a new untouched holdout.
+model_configs = ["config/default.toml", "config/exp_supervised_v1.toml", "config/exp_supervised_v2.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+seed = 20261111
+bootstrap_draws = 500

@@ -1,0 +1,23 @@
+# Pipeline configuration. Every tunable number lives here, not in the code.
+#
+# To try an idea: copy this file (e.g. config/exp_bola_keluar.toml), change values, then
+#     python -m mtah.predict --config config/exp_bola_keluar.toml --name exp_bola_keluar
+# or override a single value without a new file:
+#     python -m mtah.predict --set possession.window=75 --name exp_window75
+
+# Exactly as registered with the organisers. The final file is named <team_name>.csv.
+team_name = "Goalorithm"
+
+[dead_ball]
+# Which detector in src/mtah/dead_ball.py to use.
+# "no_ball_window": dead when the tracking saw no ball within +/- window frames
+#                   (the organisers' baseline behaviour).
+method = "no_ball_window"
+window = 50
+
+[possession]
+# Which assigner in src/mtah/possession.py to use.
+# "nearest_majority": nearest tracked object to the ball, majority vote over +/- window frames
+#                     (the organisers' baseline behaviour).
+method = "nearest_majority"
+window = 50

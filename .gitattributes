@@ -1,0 +1,7 @@
+# Keep CSVs byte-identical on every OS (Windows git would otherwise check them out as CRLF).
+*.csv text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+# Released model files are hashed byte for byte: never convert their line endings.
+release/** -text

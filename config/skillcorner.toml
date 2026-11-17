@@ -1,0 +1,7 @@
+repository = "https://github.com/SkillCorner/opendata"
+commit = "4340d274572876239c154c90bc507a9b3250a656"
+train_games = [1886347, 1899585]
+validation_games = [1925299]
+test_games = [1927964]
+reference = "provider algorithmic team possession, only when ball is detected; partial H/A silver labels"
+# Missing ownership does not establish a dead ball. No D reference is manufactured.

@@ -1,0 +1,15 @@
+{
+  "source_repository": "https://github.com/metrica-sports/more-than-a-hack-2027.git",
+  "source_commit": "f8f2629ff1e0985f81d7e59d8413678514ee1530",
+  "retained_team_snapshot": "4b1b10ce19619c1c554a8458cca8d99da6312433",
+  "history": "new history; prior team commits were not imported",
+  "excluded_paths_manifest": ".github/excluded-paths.txt",
+  "excluded_paths_sha256": "639f5d7749d7d383686ae48fc3d148f93bfd66fa8ef28c3bfb04fa1b8e19fb25",
+  "protected_upstream_paths": [
+    "evaluation/",
+    "starter/",
+    "games.py",
+    "RULES.md",
+    "LICENSE"
+  ]
+}

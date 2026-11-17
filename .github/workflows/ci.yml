@@ -1,0 +1,74 @@
+# Runs on every Pull Request. The job name "checks" is the required status check in both
+# rulesets (.github/ruleset-dev.json, .github/ruleset-main.json): a PR cannot be merged while red.
+# No match data here (it is gated), so this checks the code, not the score.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev, affandi/tech1-hmm]
+
+jobs:
+  platform-checks:
+    name: platform (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Only dev may be merged into main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref != 'dev'
+        run: |
+          echo "::error::PR ke main hanya boleh dari branch dev. Ubah base PR ini ke dev."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            requirements-team.txt
+      - name: Install
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e .
+      - name: No excluded research in the repository
+        run: python tools/check_repository_content.py
+      - name: Lint (ruff)
+        run: |
+          ruff check src tools tests scripts
+          ruff format --check src tools tests scripts
+      - name: Tests
+        run: pytest -q
+      - name: No match data in the repository
+        run: |
+          if git ls-files | grep -E '^(data/[^R]|cache/|outputs/)|\.(mp4|npz|parquet)$'; then
+            echo "::error::match data or derived files are tracked by git"; exit 1
+          fi
+      - name: Organisers' scorer still runs
+        run: |
+          python evaluation/validate_submission.py evaluation/results/baseline_smooth50.csv
+          python evaluation/run_evaluation.py --no-detail
+
+  # Retain the exact required status name used by the protected-branch rulesets.
+  checks:
+    name: checks
+    needs: platform-checks
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every platform to succeed
+        env:
+          PLATFORM_RESULT: ${{ needs.platform-checks.result }}
+        run: |
+          if [ "$PLATFORM_RESULT" != "success" ]; then
+            echo "::error::Platform checks did not all succeed: $PLATFORM_RESULT"
+            exit 1
+          fi

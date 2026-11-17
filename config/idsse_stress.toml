@@ -1,0 +1,7 @@
+# Post-hoc measurement audit after detecting frozen ball coordinates during external D states.
+# No model fitting/selection uses this profile. Independent per-frame noise is a stress test.
+model_configs = ["config/default.toml", "config/exp_supervised_v1.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+ball_noise_std_m = 0.15
+seed = 20261112
