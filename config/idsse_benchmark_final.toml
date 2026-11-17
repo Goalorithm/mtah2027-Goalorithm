@@ -1,0 +1,9 @@
+# Final comparison for the technical document: baseline, hand-specified HMM and the selected joint
+# model, all frozen before this run. Re-evaluation on exposed IDSSE test games, not a new holdout.
+# No fitting or selection happens here; the joint model was selected on IDSSE validation games.
+model_configs = ["config/default.toml", "config/exp_hmm_v2.toml", "config/exp_supervised_joint.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+seed = 20261111
+bootstrap_draws = 500
