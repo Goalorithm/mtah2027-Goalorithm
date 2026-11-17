@@ -26,6 +26,12 @@ See [docs/HMM_V2.md](docs/HMM_V2.md),
 [docs/DOMAIN_IMPROVEMENT.md](docs/DOMAIN_IMPROVEMENT.md) for the retained research methods.
 `run_all_tech.cmd`, followed by the optional temporal/domain workflows, rebuilds external models.
 
+**Submitted model:** an ATD-realistic temporal convolutional network fitted only on external
+matches (IDSSE, Metrica samples, SoccerTrack v2) that have been re-measured to behave like
+automatic tracking. It reads only the provided automatic tracking: no video, no broadcast
+recording, no Smart Tagging. Method, training data and limitations:
+[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
+
 The video-ball pipeline, its dependent models and training of an HMM on BAR-ATH have been
 excluded from this branch's current file tree. The publication guard reads
 [.github/excluded-paths.txt](.github/excluded-paths.txt); run
@@ -44,15 +50,21 @@ unpack the `tactical/` folder of the bundle into `data/`, or point `MTAH_DATA_DI
 python3.11 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements-team.txt
+pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 pip install -e .
-python -m mtah.predict                 # -> outputs/Goalorithm.csv
+python tools/restore_release.py        # released model weights -> outputs/
+python tools/evaluate_atd.py --model-dir outputs/atds_ensemble --mode competition --name Goalorithm
 ```
 
-The command validates the file with the organisers' checks and prints its sha256.
+This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
+sha256. The file is computed on CPU and the prediction is run twice and must match exactly.
+The weights in `release/atd/` were fitted on external matches only; `run_atd.cmd` refits them.
+The earlier rule/HMM baseline is still available with `python -m mtah.predict`.
+
 CI checks code and baseline scoring on Windows and Linux; model accuracy requires separate evaluation.
 
-Only three files of the bundle are read: `BAR-ATH_tactical_atd.xml`, `BAR-ATH_tactical_atd.txt`
-and `BAR-ATH_tactical_smart_tagging.xml`. The first run parses the tracking into `cache/`
+The submitted model reads two files of the bundle: `BAR-ATH_tactical_atd.xml` and
+`BAR-ATH_tactical_atd.txt` (the baseline also reads `BAR-ATH_tactical_smart_tagging.xml`). The first run parses the tracking into `cache/`
 (about a minute); later runs take seconds.
 
 ## Repository layout

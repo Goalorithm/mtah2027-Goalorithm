@@ -4,7 +4,7 @@
   "retained_team_snapshot": "4b1b10ce19619c1c554a8458cca8d99da6312433",
   "history": "new history; prior team commits were not imported",
   "excluded_paths_manifest": ".github/excluded-paths.txt",
-  "excluded_paths_sha256": "9864ef569b81ae2c14586dea34762654da2639777ba4e2fb9faafb8cd498ec62",
+  "excluded_paths_sha256": "990e367b1545727fc28628a9758171927bd009310dd926234759ae4b13a45626",
   "protected_upstream_paths": [
     "evaluation/",
     "starter/",
