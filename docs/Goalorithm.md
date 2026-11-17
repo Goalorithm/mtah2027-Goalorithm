@@ -2,235 +2,219 @@
 
 Team Goalorithm · Repository: <https://github.com/Goalorithm/mtah2027-Goalorithm> (branch `main`)
 
+Submitted file: `Goalorithm.csv`, 199,319 rows, SHA-256
+`10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`.
+
 ## 1. Summary
 
-Every frame of the FC Barcelona (H) vs Athletic Club (A) tactical video gets one label, H, A or
-D, and we write X only outside the two halves. The final system reads nothing but the automatic
-tracking. It turns each frame into geometry and motion features and scores them twice: once with
-gradient-boosted trees and once with a temporal convolutional network (TCN) that sees about five
-seconds either side. We average the two, then decode each half with Viterbi so that a possession
-has to earn both its start and its end. Both models were trained on public Bundesliga matches
-(IDSSE, CC BY 4.0) and nothing else.
+The competition tracking is automatic. The organisers report the ball missing on 41% of graded
+frames and about 20.5 tracked objects per frame, and corrected public tracking looks nothing like
+that: IDSSE freezes the ball wherever play stopped, Metrica blanks it, and the ball is otherwise
+always there. A model trained on such data learns the provider's habits instead of the game.
+So we take labelled matches from other fixtures, re-measure them until they behave like automatic
+tracking, train a temporal convolutional network (TCN) on those copies and decode its output into
+possessions with Viterbi. Three seeds are refitted and averaged. Every weight, decoder setting and
+selection comes from external matches; at inference the model reads only the provided automatic
+tracking, with no video, no broadcast recording and no Smart Tagging.
 
-We didn't fit, tune, calibrate or select anything on the provided match, its video, its public
-5-minute ground truth or any human-produced data about it.
+We found out how much this matters the hard way. Our previous final model, a TCN blended with
+gradient-boosted trees and trained on corrected IDSSE tracking, scored 0.80 on clean IDSSE test
+input but only 0.434 once the same test matches were re-measured like automatic tracking. The
+model submitted here scored 0.714 on exactly the same input (Section 6).
 
-## 2. Why a sequence model
+## 2. Why a sequence model, and why not rules
 
 spellF1 treats a possession as one object and matches it by temporal IoU, so a single wrong flip
 in the middle of a long spell costs two objects while a per-frame metric would barely register
-it. That's the segmental-F1 view of action segmentation [7, 8], and it explains why the
-organisers' baseline (nearest player, then a majority vote) fragments so badly. We decode a whole
-half at once, with an explicit model of which state can follow which.
+it. That's the segmental-F1 view of action segmentation [7, 8]. We decode a whole half at once,
+with an explicit model of which state can follow which.
 
-Could hand-written rules do the job? Vidal-Codina et al. [1] detect most event types above 90%
-with a deterministic decision tree on tracking, but their method assumes a tracked ball and an
-in-play flag, and they name both as its main limitation [1, §4]. Our data has neither: the ball is
-missing on 41% of graded frames and nothing in the tracking says when play stops. We still wrote
-rule variants (`out_of_bounds`, `set_piece_restart`, `hold_to_switch`) and a hand-specified HMM.
-They stay runnable as baselines. The HMM and the baseline trail the learned models on IDSSE
-(Section 6), and we only checked the rule variants on partial Metrica anchors, where they did
-worse than the baseline.
+Rule-based possession detection from tracking works when the ball is tracked and the data carries
+an in-play flag; Vidal-Codina et al. [1] name both as the main limitation of their method [1, §4].
+Our data has neither, and our rule variants (`out_of_bounds`, `set_piece_restart`,
+`hold_to_switch`) and a hand-specified HMM never came close to the learned models (Section 6.2).
 
-For most of the project we expected to submit the trees alone. Our TCN runs had been on a GPU, and
-CUDA probabilities differed from CPU ones by up to about 0.001 with TF32 on, which is a problem
-when the repository has to regenerate the submitted file byte for byte. On the deadline evening we
-retrained the TCN on a laptop CPU, which took 36 minutes, and then tested whether the CPU thread
-count changes anything: across 1, 4 and 14 threads the probabilities moved by at most 1.3e-6 and
-not one decoded frame changed, out of roughly 870,000 validation frames. That made the TCN safe to
-ship on CPU, so the final system blends both models and its reproduction script hides any GPU.
+## 3. Approach
 
-### 2.1 Features
+### 3.1 Re-measuring external matches like automatic tracking (`tools/atd_sim.py`)
 
-Both models read the same 93 features, all from tracking and computed per half, so no window,
-interpolation or history crosses half-time. Ball gaps of up to 25 frames get linear interpolation
-when the implied speed stays under 45 m/s.
+Each labelled external match becomes several randomly measured copies before training:
 
-- Ball: observed or interpolated, frames since the last and until the next observation, speed,
-  5-frame net motion, turning angle and acceleration.
-- Team proximity: each team's nearest-player distance, which team was nearest before and after a
-  missing stretch, and vote shares over ±5, ±15, ±25 and ±75 frames.
-- Player–ball contact: for radii of 0.75, 1.5 and 2.5 m, how long ago each team was last that close
-  and how soon it will be next; also second-nearest distance, approach speed, velocity alignment
-  and team distances at offsets of ±3, ±10 and ±25 frames. The radii sit around the 0.5–1 m
-  possession zones of [1], and the models decide how much each one matters.
-- Context: player speeds, how many players are nearly still, tracked fraction, ball distance to
-  the pitch edge.
+- **Ball losses.** During live play the ball disappears in stretches drawn from a renewal process
+  that ignores the labels. At stoppages it is re-synthesised: it rolls on, is fetched and handled,
+  is carried or kicked back to the restart spot, waits, and then is missing, visible or partly
+  visible. This removes the frozen-ball shortcut that our earlier models had learned.
+- **Smoothing.** The ball track goes through a zero-phase low-pass filter.
+- **Players.** Players drop out by tracklet and in shared outages.
+- **Ranges, not single values.** Every parameter is drawn per copy from a range in
+  `config/atd.toml`; validation and test copies use the middle of each range.
 
-Neither model learns which club is which. The trees train on every row twice, once with the teams
-swapped, and at inference both models average their probabilities over the two orientations.
+Where did the ranges come from? From the organisers' published figures (41% ball loss, about 20.5
+tracked objects) and, for some of them, from label-free descriptive statistics of the provided
+tracking: typical ball-gap lengths, how smooth the ball track is and how a tracked ball moves at
+stoppages. No label, no video and no ground truth of the provided match went into them, and no
+model weight or decoder setting was fitted on it. We checked whether the result depends on those
+statistics (Section 6.1): replacing the stoppage-ball range that came from them with a wide
+uninformed one, or switching that behaviour off, moved the test score by at most 0.01.
 
-### 2.2 The trees
+### 3.2 Label sources and the possession definition
 
-The state classifier is scikit-learn's `HistGradientBoostingClassifier`, a histogram method in
-the style of [5], with 220 iterations, 31 leaves, learning rate 0.07, L2 of 8, seed 20261111 and a
-single thread; short possessions and frames near transitions carry extra weight. A second
-classifier with 160 iterations predicts handovers, trained on frames within ±2 of a possession
-change in the training matches. We export both as JSON trees and evaluate them in NumPy, which
-reproduces scikit-learn's probabilities exactly. On validation this "joint" model beat a
-possession-balanced variant by 0.0009, which is far too close to call either way, and its
-handover classifier lifted it from 0.6448 to 0.6657.
+CHALLENGE.md says a touch without control changes nothing and that "in phases where the ball is
+contested or loose, possession stays with the last team that had it". SoccerTrack v2 marks team
+control and contested phases separately, so its contested frames go to the last team that had the
+ball. IDSSE and Metrica references are used as their providers define them.
 
-### 2.3 The TCN
+### 3.3 Model, decoder and ensemble (`tools/atd_features.py`, `tools/train_atd.py`, `tools/ensemble_atd.py`)
 
-The network stacks non-causal dilated 1-D convolutions over the 93 features: 64 channels,
-dilations 1, 2, 4, 8, 16 and 32, about 160,000 parameters and a reach of 126 frames on each side.
-It has two heads, one for the state (H, A or D) and one for handovers. Training ran 35 epochs of
-220 steps on batches of sixteen 256-frame windows from the same three training matches and the
-same input profiles as the trees, with learning rate 0.001, weight decay 0.01, a handover-loss
-weight of 0.2 and seed 20261114. Validation spellF1 climbed from 0.720 at epoch 5 to 0.741 at
-epoch 30, then slipped to 0.740 at epoch 35, so we kept epoch 30.
+- **Inputs:** 118 features per frame from the automatic ball and the players, among them each
+  team's distance and approach to the ball over several windows, ball speed, how long the ball has
+  been missing or resting, and team shape and movement. Attack direction is read per half, so the
+  features are symmetric in H and A.
+- **Network:** a non-causal TCN with 96 channels and dilations 1 to 128 (about ±20 s of context).
+  One head predicts the state (H, A or D); the other predicts change events.
+- **Training data:** 3 IDSSE matches and 2 Metrica sample matches (65% of samples) and 6
+  SoccerTrack v2 matches (35%), each as several randomly measured copies.
+- **Decoder:** Viterbi over the three states, with transitions counted on the IDSSE and Metrica
+  training references. The emission scale and event weight were chosen on validation matches from
+  all three sources, each source weighted equally.
+- **Ensemble and refit:** three seeds fix the epoch count and the decoder on validation; three
+  seeds are then refitted on training plus validation matches with both settings frozen, and
+  their probabilities are averaged before decoding.
 
-### 2.4 Blending and decoding
-
-Decoding runs log-space Viterbi over H, A and D [4], one half at a time, with initial and
-transition probabilities counted on the three training matches and a handover potential on H↔A
-moves. On the validation matches we chose how much of the state and handover probabilities
-should come from the TCN (state share from {0, 0.25, 0.5, 0.75, 1}, handover share from {0, 0.5})
-and the emission scale (0.3 or 1). An even 50/50 blend on both heads at scale 0.3 won with a mean
-validation spellF1 of 0.7439. The trees alone had 0.6657, and handing the state entirely to the
-TCN gave 0.7382, so each model covers some of the other's mistakes.
-
-## 3. Assets used and dropped
+## 4. Assets used and dropped
 
 | Asset | Final system | Notes |
 |---|---|---|
-| Tactical tracking (`_atd.xml`, `_atd.txt`) | Used | The only input at inference |
-| Smart Tagging | Not used | Feeds the HMM and rule variants. IDSSE has no tagging, so a model trained there can't learn to use it |
+| Tactical automatic tracking (`_atd.xml`, `_atd.txt`) | Used | The only input; the run log reports `video_ball_share: 0.0` |
+| Tactical video | Not used | Integrity check only. An earlier ball detector built from this match's video was removed after the organisers' 3 November clarification |
 | Homography | Not used | The tracking is already in pitch metres |
-| Broadcast tracking | Not used | A synchronisation script exists; it isn't part of the final pipeline |
-| Videos | Not used | Integrity check only (frame count, timestamps). Earlier we built a ball detector from this match's video and fitted an HMM with EM on this match's tracking; we removed both after the organisers' 3 November rules clarification |
+| Broadcast video, tracking and homography | Not used | A broadcast-cutaway feature exists in the code but is switched off |
+| Smart Tagging | Not used | Only the HMM and rule baselines read it |
+| Public 5-minute ground truth | Correctness check only | Scored after the file was built; never used to fit, select or tune |
 
-## 4. Training data
+## 5. Training data
 
-| Dataset | Use | Labels | Amount |
+None of it comes from the provided match, and we didn't create or correct a single label.
+
+| Dataset | Labels, and who produced them | Amount | Role | Licence |
+|---|---|---|---|---|
+| IDSSE, DFL/Sportec official tracking [9] | Provider channels `BallStatus` and `BallPossession` (DFL/Sportec) | 7 matches: 3 training, 2 validation, 2 test | Train, select, test | CC BY 4.0 |
+| Metrica Sports sample games 1–3, pinned commit `e706dd5` | Derived mechanically from the provider's data: dead where the corrected ball is blank, otherwise the team of the latest owning event | 3 matches: 2 training, 1 validation | Train, select | Public repository without an explicit licence; its README asks for responsible use |
+| SoccerTrack v2 [10] | Provider's per-frame possession state | 8 matches: 6 training, 1 decoder validation, 1 test | Train, select, test | CC BY 4.0 (Hugging Face, terms accepted) |
+
+## 6. Results (external matches only)
+
+All figures come from the organisers' scorer (mean spellF1 over IoU 0.3–0.7) on matches re-measured
+like automatic tracking, using the middle of every range. We had already scored the IDSSE test
+matches with earlier models, so treat those rows as a re-evaluation rather than an untouched holdout.
+
+| Check | spellF1 | macroF1 |
+|---|---|---|
+| IDSSE test J03WMX and J03WN1, 4 copies | 0.714 | 0.933 |
+| SoccerTrack v2 match 117092, never trained or selected on (contested frames to the last team) | 0.756 | 0.926 |
+| SoccerTrack v2 match 117092, contested frames not graded | 0.818 | 0.950 |
+| Validation used to choose the decoder: IDSSE / Metrica / SoccerTrack | 0.743 / 0.737 / 0.820 | |
+
+The three seeds scored 0.737, 0.738 and 0.736 on validation before averaging.
+
+### 6.1 Against our previous final model, on the same input
+
+We scored both models with the same evaluator on the same four re-measured IDSSE test copies
+(`tools/evaluate_atd.py --legacy-dir`), on a second laptop:
+
+| Test input (IDSSE J03WMX + J03WN1, 4 copies) | This model | Previous final: TCN + trees |
+|---|---|---|
+| As configured | **0.714** | 0.434 |
+| Stoppage ball never handled (the range set from tracking statistics unused) | **0.705** | 0.447 |
+| Stoppage-ball pace drawn from a wide 0.5–10 m/s range | **0.714** | 0.434 |
+
+The previous model scored 0.802 on clean IDSSE input, so nearly all of its apparent strength came
+from the frozen-ball convention. Its predecessor, a TCN trained on clean IDSSE alone, scored 0.385
+here.
+
+### 6.2 Everything else we tried
+
+Before the re-measurement existed we compared 20 models on IDSSE test input that kept the
+provider's frozen ball, only adding synthetic ball dropout and jitter. Those numbers rank the
+models against each other but overstate how well any of them handles automatic tracking.
+
+| Candidate | Clean | Ball dropout | Dropout + jitter |
 |---|---|---|---|
-| IDSSE [9]: DFL/Sportec official tracking of 7 Bundesliga matches, CC BY 4.0, files pinned by SHA-256 (PySport mirror, revision `a715a38`) | Training (3 matches), validation (2), test (2) | Provider channels `BallStatus` (dead gives D) and `BallPossession` (H or A), produced by DFL/Sportec | 425,961 / 289,155 / 287,528 labelled frames |
-| Metrica Sports sample data, games 1 and 2 (pinned commit) | Partial evaluation only | Team of each PASS event at its start frame | 798 and 964 anchors |
+| Organisers' baseline (nearest player, majority vote) | 0.296 | 0.248 | 0.244 |
+| Rules: sustained close control (± guarded abstention) | 0.273 | 0.207 | 0.192 |
+| Hand-specified HMM (v1, v2) | 0.278 | 0.233 | 0.213 |
+| Rules: dead ball from outside-pitch evidence, control rules | 0.365–0.366 | 0.275–0.291 | 0.286–0.301 |
+| Gradient-boosted trees, 26 features (v1) / with augmentation (v2) | 0.488 | 0.433–0.436 | 0.242 / 0.427 |
+| Trees with player–ball interaction features (v3, v4, balanced) | 0.632–0.657 | 0.564–0.572 | 0.552–0.569 |
+| Trees + handover classifier ("joint"; refit, calibrated, dense variants) | 0.713–0.720 | 0.600–0.605 | 0.587–0.594 |
+| Joint mixed with a random forest | 0.719 | 0.618 | 0.603 |
+| TCN + trees (previous final) | 0.802 | 0.688 | 0.675 |
 
-We didn't create or correct a single label. Every training input goes through three profiles:
-clean; synthetic ball dropout, a Markov process hiding 40% of frames in gaps averaging 25 frames;
-and dropout plus 0.15 m coordinate jitter. For the trees we take every fifth frame and add the
-team-swapped copy, which comes to 511,164 rows. None of it is from the provided match.
+## 7. Possession rules implemented
 
-The Metrica sample repository has no explicit licence; its README only asks users to be
-responsible with the data. We used it for a partial sanity check, never for training or for
-choosing the final model, and the submission doesn't depend on it.
+- **Dead ball (D)** runs from the moment play stops until the restart is taken, as the providers
+  mark it.
+- **Team (H or A)** during live play is the team that last controlled the ball; contested and loose
+  balls stay with that team.
+- **Touches without control** don't change the label unless the network sees sustained evidence
+  for the other team.
+- **Restarts:** the restarting team's possession begins when the ball is back in play.
+- **A missing ball isn't a dead ball.** The model decides from player movement, how long the ball
+  has been missing and the surrounding context.
+- **X** appears only outside the two graded halves; inside them spellF1 would forward-fill it anyway.
 
-## 5. Possession rules implemented
+## 8. Limitations and what we'd do next
 
-The models learn the provider's mechanical definitions, D whenever the ball is out of play and
-otherwise the team that owns it, so most of our line-drawing lives in the decoder.
+We don't know the score on BAR-ATH. Every figure above comes from other matches re-measured to
+resemble automatic tracking, and anything the re-measurement doesn't capture, such as identity
+switches between nearby players, isn't covered.
 
-Loose balls, deflections and aerial duels don't get a rule of their own. Switching teams costs
-something in the transition matrix, and only sustained evidence or a confident handover score pays
-that cost, so a touch or a ball passing close to a player doesn't flip the state. That's the
-challenge's "possession stays with the last team that had it", and it agrees with [1], where a
-touch counts only when the ball changes direction or speed.
+Short possessions and duels remain the main loss: about one possession in four is missed or
+wrongly bounded on IDSSE labels, mostly those under two seconds, and when players of both teams
+are within reach of the ball, positions alone can't say who controlled it.
 
-We wrote no set-piece rules either: the D→H and D→A transitions, together with what happens right
-after the restart, decide who restarts. For dead balls the models look at ball position and
-motion, at how the ball data goes missing and at whether players have slowed down. A missing ball
-on its own isn't treated as dead.
+Label conventions differ by provider. IDSSE records possession more finely than the competition's
+definition, which is why the decoder is chosen on three sources weighted equally.
 
-X appears only outside the published half boundaries. Inside a half we always commit, because
-spellF1 forward-fills X with the previous label anyway.
+Some simulation ranges came from label-free statistics of the provided tracking (Section 3.1).
+The sensitivity check suggests the result doesn't hinge on them, but a cleaner version would set
+every range from external data alone, and that's the first thing we'd change.
 
-## 6. Results (external data only)
+With more time we'd train a ball and player-contact model on footage of other matches to decide
+duels, and look for more labelled matches with automatic tracking.
 
-Every number here comes from the organisers' scorer, as mean spellF1 over IoU 0.3–0.7. We had
-already used IDSSE test matches J03WMX and J03WN1 in earlier iterations, so read this as a
-re-evaluation rather than an untouched holdout.
+## 9. Reproduction
 
-| Model (mean of J03WMX and J03WN1) | Clean | Ball dropout | Dropout + jitter |
-|---|---|---|---|
-| Baseline (nearest player + majority vote) | 0.296 | 0.248 | 0.244 |
-| Hand-specified HMM v2 | 0.278 | 0.233 | 0.213 |
-| Joint trees | 0.720 | 0.604 | 0.594 |
-| **TCN + trees (final)** | **0.802** | **0.688** | **0.675** |
-
-The final blend beat the trees on all six match-and-profile rows, by 0.06 to 0.10. Per match it
-scored 0.787 and 0.817 on clean input and never dropped below 0.654; the organisers put the spellF1
-noise band at about 0.04 on a full match. It also predicts 435 and 440 possessions against the
-provider's 511 and 500, closer than the trees' 417 and 437, though short possessions are still
-the main loss (Section 7).
-
-The baseline's numbers come with a caveat that cuts against it. It calls D only when the ball
-disappears, and in IDSSE the ball never really disappears, so its dead-ball F1 is 0.00 on clean
-input. The HMM goes wrong the other way, predicting about 200 possessions per match where the
-provider has about 500.
-
-Selection used only the validation matches J03WQQ and J03WR9 (0.7439 for the final blend, 0.6657
-for the trees). Earlier iterations had seen the test matches, which is why we call the table a
-re-evaluation. We have no accuracy figure for the provided match. The public 5-minute window
-served one purpose: checking that the file was well formed and the frames aligned.
-
-## 7. Limitations and what we'd do next
-
-The domain gap is the biggest risk. IDSSE is corrected in-stadium optical tracking, whereas the
-provided match comes from automatic tactical-camera tracking that loses the ball often; our
-augmentation imitates dropout and jitter but not identity switches or systematic ball errors.
-[1] says data like ours needs larger possession zones and per-provider re-tuning, and the rules
-allow that only on external data, which is where we did it.
-
-IDSSE also hides a shortcut: during nearly every dead frame the ball's coordinates freeze in place.
-External validation therefore says little about dead-ball detection when the ball has simply
-vanished, which is the common case in the provided match.
-
-Short possessions under two seconds still get missed or merged.
-
-On Metrica pass-start anchors (our 13 November run) the learned models came out slightly behind
-the plain baseline, at about 92–93% against 94–96%, even though they're far ahead on IDSSE.
-Anchors cover passes only and [1] reports 10–15% disagreement between event annotators, so we
-don't treat them as decisive; the gap still warns about cross-provider transfer.
-
-Reproducing the TCN exactly depends on running it on a CPU. We tested thread counts on one laptop,
-not different CPU vendors, so we'd like to confirm the output on an AMD and an Intel machine.
-
-With more time we'd add formation-based set-piece triggers as dead-ball evidence and
-Savitzky–Golay ball smoothing [1], try ball-trajectory inference for missing-ball stretches [3]
-and look for labelled automatic-tracking data from other providers.
-
-## 8. Reproduction
-
-The repository ships both trained models (`models/`), so regenerating the submission takes one
-command after installation:
+Python 3.11, with every dependency pinned using `==`. Unpack the tactical tracking of the bundle
+into `data/` (or set `MTAH_DATA_DIR`). The trained weights are released in `release/atd/`, so no
+training is needed:
 
 ```
-python3.11 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-team.txt
 python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -e .
-# data bundle: unpack tactical/ into data/ (or set MTAH_DATA_DIR)
-python tools/predict_temporal.py                    # -> outputs/Goalorithm.csv, CPU only
+python tools/restore_release.py
+python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
 ```
 
-Rebuilding the models from the pinned IDSSE files first:
+This writes `outputs/Goalorithm.csv` and prints its SHA-256. The file is always computed on CPU,
+the evaluator runs the prediction twice and refuses to write a file if the runs differ, and two
+different laptops produced the same SHA-256 (`10fbac79…c199`). Retraining from the external data:
+`run_all_tech.cmd` for the IDSSE and Metrica downloads, then `run_atd.cmd`.
 
-```
-python tools/prepare_idsse.py                       # downloads/verifies the pinned IDSSE files
-python tools/train_supervised.py --config config/exp_supervised_v3.toml --out-dir outputs/supervised_v3
-python tools/train_boundaries.py
-python tools/train_supervised.py --config config/exp_supervised_balanced.toml --out-dir outputs/supervised_balanced
-python tools/select_joint.py                        # trees -> outputs/supervised_joint/
-python tools/train_temporal.py                      # TCN  -> outputs/temporal/
-```
+The previous final model stays reproducible with `python tools/predict_temporal.py`
+(`dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`); see `models/README.md`.
 
-Then copy `outputs/supervised_joint/model.json` and the five files of `outputs/temporal/` into
-`models/` as listed in `models/README.md`. Python 3.11, with every dependency pinned using `==`.
-Seeds are fixed, the trees train on one thread, and the TCN loader checks the hashes of its weights,
-its teacher and the source files it was trained with. Two consecutive runs produced the same
-`Goalorithm.csv`, SHA-256 `dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`.
-
-## 9. Rules compliance
+## 10. Rules compliance
 
 - No human labels or human-produced data about the provided match, in any form.
-- Nothing fitted, tuned, calibrated or selected on its ground truth, its video or its tracking.
-- We never checked predictions against the video, and the repository no longer contains the
-  review and label-suggestion tools.
+- No weight, decoder setting or model choice fitted, tuned or selected on its ground truth, its
+  video or its tracking. Some simulation ranges were set from label-free descriptive statistics of
+  its automatic tracking (Section 3.1); we disclose that here, and the sensitivity check in
+  Section 6.1 shows the result barely depends on them.
+- Predictions were never checked against the video, and the repository no longer contains the
+  video-review and label-suggestion tools.
 - No competition data went to any AI service; everything ran locally.
-- External data: IDSSE (CC BY 4.0, cited below) for training and selection; Metrica's public
-  sample data (no explicit licence) for a partial check only.
 
 ## References
 
@@ -252,3 +236,4 @@ its teacher and the source files it was trained with. Two consecutive runs produ
    doi:10.1109/TPAMI.2020.3021756
 9. M. Bassek, R. Rein, H. Weber, D. Memmert. An integrated dataset of spatiotemporal and event
    data in elite soccer. *Scientific Data* 12:195, 2025. doi:10.1038/s41597-025-04505-y
+10. SoccerTrack v2, Scott et al., arXiv:2508.01802 (as cited by the dataset card).
