@@ -5,3 +5,4 @@
 *.md text eol=lf
 # Released model files are hashed byte for byte: never convert their line endings.
 release/** -text
+models/** -text

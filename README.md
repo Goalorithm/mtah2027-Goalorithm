@@ -43,16 +43,25 @@ unpack the `tactical/` folder of the bundle into `data/`, or point `MTAH_DATA_DI
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements-team.txt
-pip install -e .
-python -m mtah.predict                 # -> outputs/Goalorithm.csv
+python -m pip install -r requirements-team.txt
+python -m pip install -e .
+python -m mtah.predict --config config/final.toml      # -> outputs/Goalorithm.csv
 ```
 
-The command validates the file with the organisers' checks and prints its sha256.
+`config/final.toml` loads the committed joint checkpoint in [models/](models/README.md), which
+was trained only on external IDSSE matches; no download or training is needed. The command
+validates the file with the organisers' checks and prints its sha256; the submitted file is
+`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`. To rebuild the checkpoint from the pinned IDSSE data first, follow
+[models/README.md](models/README.md). The approach is described in the technical document,
+[docs/Goalorithm.md](docs/Goalorithm.md).
+
+On Windows machines where policy blocks `pip.exe`, keep the `python -m pip` form shown above.
+`python -m mtah.predict` without `--config` still reproduces the organisers' `baseline_smooth50`.
 CI checks code and baseline scoring on Windows and Linux; model accuracy requires separate evaluation.
 
 Only three files of the bundle are read: `BAR-ATH_tactical_atd.xml`, `BAR-ATH_tactical_atd.txt`
-and `BAR-ATH_tactical_smart_tagging.xml`. The first run parses the tracking into `cache/`
+and `BAR-ATH_tactical_smart_tagging.xml` (the final model ignores the tagging; the HMM and rule
+variants use it). The first run parses the tracking into `cache/`
 (about a minute); later runs take seconds.
 
 ## Repository layout

@@ -14,6 +14,9 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=2500"]
+        # The final checkpoint (~8 MB JSON, external IDSSE training only) is committed on purpose
+        # so the submission regenerates without retraining; see models/README.md.
+        exclude: '^models/'
       - id: check-merge-conflict
       - id: check-toml
   - repo: https://github.com/astral-sh/ruff-pre-commit
