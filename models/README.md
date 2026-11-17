@@ -1,8 +1,11 @@
 # Committed model checkpoints
 
+These are the earlier IDSSE-trained models, kept for comparison. The submitted model is the
+ATD-realistic TCN ensemble released in `release/atd/` (see the README and `docs/Goalorithm.md`).
+
 `supervised_joint/model.json` is the joint model (gradient-boosted state and handover classifiers
-plus Viterbi decoder parameters). `config/final.toml` loads it on its own, and the final TCN
-(second section below) uses it as its teacher.
+plus Viterbi decoder parameters). `config/final.toml` loads it on its own, and the TCN in the
+second section below uses it as its teacher.
 
 - **Trained on:** IDSSE external matches only (DFL/Sportec tracking, CC BY 4.0; Bassek, Rein,
   Weber and Memmert, *Scientific Data* 12:195, 2025, doi:10.1038/s41597-025-04505-y). Training
@@ -28,7 +31,7 @@ selection exactly, with the same choice and the same validation score to four de
 `provenance` block also records hashes of the source files, so the bytes of `model.json` match only
 when the source matches too; predictions depend only on the trees and decoder parameters.
 
-# TCN checkpoint (final submission model)
+# TCN checkpoint (previous final model)
 
 `temporal/` holds the temporal convolutional network that `tools/predict_temporal.py` runs on top
 of the joint model above, which acts as its teacher. These are the files `tools/evaluate_temporal.py`

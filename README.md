@@ -29,8 +29,8 @@ See [docs/HMM_V2.md](docs/HMM_V2.md),
 **Submitted model:** an ATD-realistic temporal convolutional network fitted only on external
 matches (IDSSE, Metrica samples, SoccerTrack v2) that have been re-measured to behave like
 automatic tracking. It reads only the provided automatic tracking: no video, no broadcast
-recording, no Smart Tagging. Method, training data and limitations:
-[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
+recording, no Smart Tagging. Method, training data, results and limitations are in the
+technical document, [docs/Goalorithm.md](docs/Goalorithm.md).
 
 The video-ball pipeline, its dependent models and training of an HMM on BAR-ATH have been
 excluded from this branch's current file tree. The publication guard reads
@@ -59,11 +59,13 @@ python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode comp
 This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
 sha256 (`10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`). The file is computed
 on CPU and the prediction is run twice and must match exactly. The weights in `release/atd/`
-were fitted on external matches only; `run_atd.cmd` refits them. Method:
-[docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
+were fitted on external matches only; `run_atd.cmd` refits them. Two different laptops
+produced the same sha256. Method: [docs/Goalorithm.md](docs/Goalorithm.md).
 
-**Alternative candidate: TCN blended with the joint tree model.** Both are trained only on
-external IDSSE matches and committed in [models/](models/README.md):
+**Previous final model: TCN blended with the joint tree model.** Both are trained only on
+external IDSSE matches and committed in [models/](models/README.md). On IDSSE test matches
+re-measured like automatic tracking it scored 0.434 against 0.714 for the submitted model, so it is
+kept as a comparison (docs/Goalorithm.md, Section 6.1):
 
 ```bash
 python tools/predict_temporal.py       # -> outputs/Goalorithm.csv
