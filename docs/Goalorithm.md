@@ -28,9 +28,9 @@ with a deterministic decision tree on tracking, but their method assumes a track
 in-play flag, and they name both as its main limitation [1, §4]. Our data has neither: the ball is
 missing on 41% of graded frames and nothing in the tracking says when play stops. We still wrote
 rule variants (`out_of_bounds`, `set_piece_restart`, `hold_to_switch`) and a hand-specified HMM.
-They stay runnable as baselines. The HMM and the baseline trail the learned models on IDSSE
-(Section 6), and we only checked the rule variants on partial Metrica anchors, where they did
-worse than the baseline.
+They stay runnable as baselines. On IDSSE the best rules beat the organisers' baseline (0.366
+against 0.296 spellF1 on clean input) but stay far below the learned models, and the HMM doesn't
+beat the baseline at all (Section 6.1).
 
 For most of the project we expected to submit the trees alone. Our TCN runs had been on a GPU, and
 CUDA probabilities differed from CPU ones by up to about 0.001 with TF32 on, which is a problem
@@ -164,6 +164,38 @@ Selection used only the validation matches J03WQQ and J03WR9 (0.7439 for the fin
 for the trees). Earlier iterations had seen the test matches, which is why we call the table a
 re-evaluation. We have no accuracy figure for the provided match. The public 5-minute window
 served one purpose: checking that the file was well formed and the frames aligned.
+
+### 6.1 Everything else we tried
+
+Dropped candidates matter as much as the winner, so on the deadline evening we rebuilt every
+retained non-TCN variant from the current code and scored all 19 on the same test matches
+(`config/idsse_benchmark_nontcn.toml`, 114 runs). Nothing here was used to choose the final model;
+the earlier choices came from validation, and this table only checks them.
+
+| Candidate | What it adds | Clean | Ball dropout | Dropout + jitter |
+|---|---|---|---|---|
+| `default` | Organisers' baseline: nearest player, majority vote | 0.296 | 0.248 | 0.244 |
+| `exp_pos_control`, `exp_pos_x` | Rules: sustained close control; the second adds guarded abstention | 0.273 | 0.207 | 0.192 |
+| `exp_hmm_v1`, `exp_hmm_v2` | Hand-specified HMM; v2 forgets outside-pitch evidence after 2 s | 0.278 | 0.233 | 0.213 |
+| `exp_rules_v1` | Rules: control and dead-ball rules combined | 0.366 | 0.275 | 0.286 |
+| `exp_bm_out`, `exp_bm_restart` | Rules: dead ball from confirmed outside-pitch evidence; restarts use tagging, absent in IDSSE | 0.365 | 0.291 | 0.301 |
+| `exp_supervised_v1` | Trees, 26 features, clean training only | 0.488 | 0.436 | 0.242 |
+| `exp_supervised_v2` | + dropout/jitter augmentation and net-motion features | 0.488 | 0.433 | 0.427 |
+| `exp_supervised_v4` | + interaction features, larger trees | 0.632 | 0.564 | 0.555 |
+| `exp_supervised_v3` | + interaction features (93 in total) | 0.635 | 0.567 | 0.552 |
+| `exp_supervised_balanced` | v3 with possession-balanced sampling | 0.657 | 0.572 | 0.569 |
+| `exp_supervised_refit` | Joint refitted on training and validation matches together | 0.713 | 0.600 | 0.593 |
+| `exp_supervised_boundary_dense` | Handover classifier keeping every positive transition frame | 0.720 | 0.605 | 0.587 |
+| `exp_supervised_joint` | v3 + handover classifier (the trees in Section 2.2) | 0.720 | 0.604 | 0.594 |
+| `exp_supervised_boundary`, `exp_supervised_calibrated` | Same joint; calibration chose zero bias, so identical | 0.720 | 0.604 | 0.594 |
+| `exp_supervised_ensemble` | Mixture with a random forest | 0.719 | 0.618 | 0.603 |
+| **Final: TCN + trees** | Section 2.3 and 2.4 | **0.802** | **0.688** | **0.675** |
+
+A few results stood out. The interaction features gave the biggest single jump (0.49 to 0.64),
+bigger than any decoder change, and the forest ensemble's small edge on corrupted input (about
+0.01) sat inside the noise band and had already failed the team's +0.01 adoption threshold on
+validation. The rule variants did better on IDSSE than on Metrica pass-start anchors, where they
+fell below the baseline.
 
 ## 7. Limitations and what we'd do next
 
