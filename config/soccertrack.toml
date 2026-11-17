@@ -1,0 +1,24 @@
+# Real-footage validation on SoccerTrack v2 (other games, CC BY 4.0, open on Hugging Face).
+# Full-pitch panoramic video, per-frame player pitch positions with team, a ball track and
+# ball-action events with the acting team. Nothing here is fitted; no BAR-ATH data is involved.
+repository = "atomscott/soccertrack-v2"
+revision = "325bd4c57ee8e135ab652f3921d274526ada496b"
+directory = "data/external/soccertrack_v2"
+citation = "Scott et al., SoccerTrack v2: A Full-Pitch Multi-View Soccer Dataset for Game State Reconstruction, arXiv:2508.01802"
+
+# Matches to fetch. Tracking, ball and events are small next to the videos (about 6 GB a match).
+matches = ["117092", "117093"]
+# External matches reserved for fitting; excluded simulator preparation is no longer shipped.
+# They never overlap `matches`, which stay an untouched check. Matches 132831 and 132877 ship
+# no possession state (their ball status is a placeholder on every frame), so they are left out.
+train_matches = ["118575", "118576", "118577", "118578", "128057", "128058"]
+# Halves whose panoramic video is fetched as well (6.7 GB each), for the ball re-detector.
+video_halves = ["117092_1st"]
+
+# External validation role retained as dataset provenance; the excluded decoder workflow is retired.
+# The other match stays a check that no fitting or selection step has read.
+validation_matches = ["117093"]
+
+# Simulated ball profiles per half and their seed (tools/evaluate_atd_soccertrack.py).
+profiles = 2
+seed = 20261201

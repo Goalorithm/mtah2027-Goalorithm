@@ -1,0 +1,9 @@
+parent_config = "config/exp_supervised_joint.toml"
+component_dirs = ["outputs/temporal", "outputs/temporal_v2"]
+train_games = ["J03WOH", "J03WOY", "J03WPY"]
+validation_games = ["J03WQQ", "J03WR9"]
+test_games = ["J03WMX", "J03WN1"]
+test_previous_exposure = "evaluated during earlier tree and TCN revisions; not an untouched holdout"
+component_weights = [0.0, 0.25, 0.5, 0.75, 1.0]
+state_weights = [0.5, 0.75, 1.0]
+minimum_gain_over_best_component = 0.005

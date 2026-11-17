@@ -1,0 +1,42 @@
+# Capacity/regularisation comparison chosen on validation games; all test games have prior exposure.
+team_name = "Goalorithm"
+[dead_ball]
+method = "supervised"
+[possession]
+method = "supervised"
+[supervised]
+model_path = "outputs/supervised_v4/model.json"
+[supervised.features]
+max_gap = 25
+max_ball_speed_mps = 45.0
+distance_cap_m = 30.0
+gap_cap_frames = 250
+windows = [5, 15, 25, 75]
+slow_player_mps = 1.0
+moving_ball_mps = 3.0
+player_speed_scale_mps = 12.0
+motion_lag_frames = 5
+interactions = true
+contact_radii_m = [0.75, 1.5, 2.5]
+interaction_offsets = [-25, -10, -3, 3, 10, 25]
+[supervised.training]
+train_games = ["J03WOH", "J03WOY", "J03WPY"]
+validation_games = ["J03WQQ", "J03WR9"]
+test_games = ["J03WMX", "J03WN1"]
+test_set_previous_exposure = "reused_after_v1_v2; v4_plan_fixed_before_v3_test_evaluation; not an untouched holdout"
+seed = 20261111
+stride = 5
+max_iter = 360
+max_leaf_nodes = 63
+learning_rate = 0.06
+l2_regularization = 12.0
+min_samples_leaf = 40
+verbose = 1
+short_spell_weight_exponent = 0.3
+boundary_weight = 1.25
+boundary_frames = 8
+transition_pseudocount = 1.0
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+decoder_scales = [0.03, 0.1, 0.3, 1.0]

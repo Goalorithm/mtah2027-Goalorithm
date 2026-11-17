@@ -1,0 +1,36 @@
+# Noise-robust revision after v1 input-convention audit. Final test games have prior exposure.
+# No test labels are used for fitting or decoder selection; use train/validation games below.
+team_name = "Goalorithm"
+[dead_ball]
+method = "supervised"
+[possession]
+method = "supervised"
+[supervised]
+model_path = "outputs/supervised_v2/model.json"
+[supervised.features]
+max_gap = 25
+max_ball_speed_mps = 45.0
+distance_cap_m = 30.0
+gap_cap_frames = 250
+windows = [25, 75]
+slow_player_mps = 1.0
+moving_ball_mps = 3.0
+player_speed_scale_mps = 12.0
+motion_lag_frames = 5
+[supervised.training]
+train_games = ["J03WOH", "J03WOY", "J03WPY"]
+validation_games = ["J03WQQ", "J03WR9"]
+test_games = ["J03WMX", "J03WN1"]
+test_set_previous_exposure = "reused_after_v1_frozen_coordinate_and_noise_audit; not a new untouched holdout"
+seed = 20261111
+stride = 5
+max_iter = 120
+max_leaf_nodes = 15
+learning_rate = 0.08
+l2_regularization = 5.0
+min_samples_leaf = 50
+transition_pseudocount = 1.0
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+decoder_scales = [0.03, 0.1, 0.3, 1.0]

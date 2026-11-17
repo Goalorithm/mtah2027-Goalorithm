@@ -1,0 +1,6 @@
+# Frozen benchmark candidates and corruption profile; no model fitting occurs here.
+model_configs = ["config/default.toml", "config/exp_rules_v1.toml", "config/exp_hmm_v2.toml", "config/exp_supervised_v1.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+seed = 20261111
+bootstrap_draws = 500

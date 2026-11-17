@@ -1,0 +1,7 @@
+# All components and combinations are frozen before this re-evaluation of exposed games.
+model_configs = ["config/exp_supervised_v2.toml", "config/exp_supervised_v3.toml", "config/exp_supervised_v4.toml", "config/exp_supervised_boundary.toml", "config/exp_supervised_balanced.toml", "config/exp_supervised_joint.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+seed = 20261111
+bootstrap_draws = 500

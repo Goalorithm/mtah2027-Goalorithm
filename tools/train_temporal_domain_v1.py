@@ -1,0 +1,391 @@
+"""Train a local GPU TCN on external training games; select epochs/mixtures on validation."""
+
+import argparse
+import copy
+import random
+from itertools import product
+from pathlib import Path
+
+import _src_path  # noqa: F401
+import numpy as np
+import torch
+from benchmark_idsse import verify_freeze
+from domain_validation_v1 import partial_validation
+from evaluate_temporal import load_model
+from prepare_temporal import load_parent, load_profiles
+from skillcorner_data import load_profiles as source_profiles
+from temporal_losses import augment_features, transition_loss
+from temporal_model import TemporalNet, blend, encode, symmetric_infer
+from torch.nn import functional as F
+from train_supervised import json_bytes, metric_summary, training_weights
+
+from mtah.boundary import decode_boundaries
+from mtah.config import load_config
+from mtah.io import sha256
+from mtah.paths import OUTPUTS_DIR, ROOT
+from mtah.review import atomic_write
+from mtah.supervised import swap_features
+
+
+def validate_games(cfg):
+    groups = [cfg[k] for k in ("train_games", "validation_games", "test_games")]
+    if any(not group or len(set(group)) != len(group) for group in groups):
+        raise ValueError("game groups must be nonempty and unique")
+    if any(set(groups[i]) & set(groups[j]) for i in range(3) for j in range(i)):
+        raise ValueError("training/validation/test games overlap")
+
+
+def sample_batch(items, cfg, names, mean, scale, halo, rng):
+    size, core = cfg["batch_size"], cfg["core_frames"]
+    width = core + 2 * halo
+    inputs, labels, events, weights = [], [], [], []
+    for _ in range(size):
+        item = items[int(rng.integers(len(items)))]
+        runs = item["runs"]
+        lengths = runs[:, 1] - runs[:, 0]
+        a, b = runs[rng.choice(len(runs), p=lengths / lengths.sum())]
+        candidates = item["changes"]
+        candidates = candidates[(candidates >= a) & (candidates < b)]
+        if len(candidates) and rng.random() < 0.5:
+            center = int(rng.choice(candidates)) + int(rng.integers(-core // 3, core // 3 + 1))
+        else:
+            center = int(rng.integers(a, b))
+        start = center - core // 2
+        lo, hi = start - halo, start + core + halo
+        values = np.full((width, len(names)), np.nan, dtype=np.float32)
+        y, e = np.full(core, 3, dtype=np.int64), np.full(core, 3, dtype=np.int64)
+        w = np.zeros(core, dtype=np.float32)
+        left, right = max(a, lo), min(b, hi)
+        values[left - lo : right - lo] = item["values"][left:right]
+        left, right = max(a, start), min(b, start + core)
+        if left < right:
+            sl = slice(left - start, right - start)
+            y[sl], e[sl], w[sl] = (
+                item["reference"][left:right],
+                item["target"][left:right],
+                item["weights"][left:right],
+            )
+        if rng.random() < 0.5:
+            values = swap_features(values, names)
+            y, e = np.array([1, 0, 2, 3])[y], np.array([1, 0, 2, 3])[e]
+        inputs.append(encode(values, mean, scale).T)
+        labels.append(y)
+        events.append(e)
+        weights.append(w)
+    return tuple(torch.from_numpy(np.stack(part)) for part in (inputs, labels, events, weights))
+
+
+def validation(net, items, parent, names, mean, scale, device, state_weight=0.75, event_weight=0):
+    rows, probabilities = [], []
+    for item in items:
+        state, event = symmetric_infer(
+            net, item["values"], item["runs"], names, mean, scale, device
+        )
+        prediction = decode_boundaries(
+            blend(item["state"], state, state_weight),
+            blend(item["event"], event, event_weight),
+            parent,
+            item["runs"],
+        )
+        metrics = metric_summary(item["reference"], prediction)
+        rows.append(
+            {"game": str(item["game"]), "profile": str(item["profile"]), "metrics": metrics}
+        )
+        probabilities.append((state, event))
+    return rows, probabilities
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", default="config/temporal_domain_v1.toml")
+    parser.add_argument("--out-dir", default="outputs/temporal_domain_v1")
+    args = parser.parse_args(argv)
+    cfg, out = load_config(args.config), Path(args.out_dir).resolve()
+    if not out.is_relative_to(OUTPUTS_DIR.resolve()):
+        parser.error("output must stay under ignored outputs/")
+    validate_games(cfg)
+    parent_config, parent, parent_path = load_parent(cfg)
+    verify_freeze(ROOT / cfg["parent_config"], parent_path)
+    expected = parent_config["supervised"]["training"]
+    if any(cfg[k] != expected[k] for k in ("train_games", "validation_games", "test_games")):
+        raise ValueError("temporal model split must match frozen teacher")
+    out.mkdir(parents=True, exist_ok=True)
+    seed = cfg["seed"]
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.set_num_threads(4)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Temporal device: {device}; torch {torch.__version__}", flush=True)
+    train = [
+        item
+        for i, game in enumerate(cfg["train_games"])
+        for item in load_profiles(game, i, "train", cfg)
+    ]
+    valid = [
+        item
+        for i, game in enumerate(cfg["validation_games"])
+        for item in load_profiles(game, i, "validation", cfg)
+    ]
+    for item in train:
+        item["weights"] = training_weights(
+            item["reference"], item["runs"], cfg["short_spell_weight_exponent"], 1.5, 8
+        ).astype(np.float32)
+        item["changes"] = np.flatnonzero(np.r_[False, np.diff(item["reference"]) != 0])
+    source_cfg = load_config(cfg["source_config"])
+    source_train = [
+        item
+        for game in source_cfg["train_games"]
+        for item in source_profiles(game, "train", parent)
+    ]
+    source_valid = [
+        item
+        for game in source_cfg["validation_games"]
+        for item in source_profiles(game, "validation", parent)
+    ]
+    for item in source_train:
+        item["weights"] *= 4
+    train = train * 2 + source_train
+    warm_dir = ROOT / cfg["warm_start_dir"]
+    warm, _, _, _ = load_model(warm_dir, "cpu")
+    names = parent["feature_names"]
+    mean, scale = (
+        np.asarray(warm["mean"], dtype=np.float32),
+        np.asarray(warm["scale"], dtype=np.float32),
+    )
+    net = TemporalNet(len(names), cfg["channels"], cfg["dilations"], cfg["dropout"]).to(device)
+    net.load_state_dict(torch.load(warm_dir / "weights.pt", map_location=device, weights_only=True))
+    optimizer = torch.optim.AdamW(
+        net.parameters(), lr=cfg["learning_rate"], weight_decay=cfg["weight_decay"]
+    )
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, cfg["epochs"])
+    # Rare directed events have bounded weights; no-event remains class 2.
+    event_weight = torch.tensor([8.0, 8.0, 1.0], device=device)
+    rng, history, best_epoch = np.random.default_rng(seed), [], 0
+    baseline_rows, _ = validation(net, valid, parent, names, mean, scale, device)
+    baseline_idsse = float(np.mean([r["metrics"]["spell_f1_mean"] for r in baseline_rows]))
+    baseline_domain, baseline_domain_rows = partial_validation(
+        net, source_valid, parent, names, mean, scale, device
+    )
+    best_utility = baseline_idsse
+    domain_history = []
+    torch.save({k: v.detach().cpu() for k, v in net.state_dict().items()}, out / "weights.pt")
+    print(
+        f"Warm baseline IDSSE={baseline_idsse:.5f}, partial domain={baseline_domain:.5f}",
+        flush=True,
+    )
+    learning_curve = []
+    for epoch in range(1, cfg["epochs"] + 1):
+        net.train()
+        total = 0.0
+        for _ in range(cfg["steps_per_epoch"]):
+            values, labels, target, weights = [
+                x.to(device) for x in sample_batch(train, cfg, names, mean, scale, net.halo, rng)
+            ]
+            values = augment_features(values, names, cfg)
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=device == "cuda"):
+                state, events = net(values)
+                sl = slice(net.halo, net.halo + cfg["core_frames"])
+                loss_state = F.cross_entropy(
+                    state[:, :, sl], labels, ignore_index=3, reduction="none"
+                )
+                loss = (loss_state * weights).sum() / weights.sum().clamp_min(1)
+                if (target != 3).any():
+                    loss += cfg["boundary_loss_weight"] * F.cross_entropy(
+                        events[:, :, sl], target, weight=event_weight, ignore_index=3
+                    )
+            loss += cfg["transition_loss_weight"] * transition_loss(state[:, :, sl], labels)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 5)
+            optimizer.step()
+            total += loss.item()
+        scheduler.step()
+        learning_curve.append({"epoch": epoch, "training_loss": total / cfg["steps_per_epoch"]})
+        print(
+            f"Epoch {epoch}/{cfg['epochs']}: train loss {total / cfg['steps_per_epoch']:.5f}",
+            flush=True,
+        )
+        if epoch % cfg["validation_every"] == 0 or epoch == cfg["epochs"]:
+            rows, _ = validation(net, valid, parent, names, mean, scale, device)
+            score = float(np.mean([row["metrics"]["spell_f1_mean"] for row in rows]))
+            history.append({"epoch": epoch, "mean_spell_f1": score, "validation": rows})
+            print(f"Epoch {epoch}: validation spellF1 {score:.5f}", flush=True)
+            source_score, source_rows = partial_validation(
+                net, source_valid, parent, names, mean, scale, device
+            )
+            utility = score + cfg["domain_accuracy_weight"] * (source_score - baseline_domain)
+            eligible = (
+                score >= baseline_idsse - cfg["maximum_idsse_validation_drop"]
+                and source_score >= baseline_domain - cfg["maximum_domain_validation_drop"]
+            )
+            domain_history.append(
+                {
+                    "epoch": epoch,
+                    "known_owner_accuracy": source_score,
+                    "details": source_rows,
+                    "selection_utility": utility,
+                    "eligible": eligible,
+                }
+            )
+            print(
+                f"Partial domain={source_score:.5f}, utility={utility:.5f}, eligible={eligible}",
+                flush=True,
+            )
+            if eligible and utility > best_utility:
+                best_epoch, best_utility = epoch, utility
+                torch.save(
+                    {k: v.detach().cpu() for k, v in net.state_dict().items()}, out / "weights.pt"
+                )
+    net.load_state_dict(torch.load(out / "weights.pt", map_location=device, weights_only=True))
+    _, probabilities = validation(net, valid, parent, names, mean, scale, device)
+    selections = []
+    for weight, event_mix, decoder_scale in product(
+        cfg["mixture_weights"], cfg["event_mixture_weights"], cfg["decoder_scales"]
+    ):
+        scores, rows = [], []
+        decoder = {**parent, "decoder_scale": decoder_scale}
+        for item, (state, event) in zip(valid, probabilities, strict=True):
+            prediction = decode_boundaries(
+                blend(item["state"], state, weight),
+                blend(item["event"], event, event_mix),
+                decoder,
+                item["runs"],
+            )
+            metrics = metric_summary(item["reference"], prediction)
+            scores.append(metrics["spell_f1_mean"])
+            rows.append(
+                {"game": str(item["game"]), "profile": str(item["profile"]), "metrics": metrics}
+            )
+        entry = {
+            "state_weight": weight,
+            "event_weight": event_mix,
+            "decoder_scale": decoder_scale,
+            "mean_spell_f1": float(np.mean(scores)),
+            "validation": rows,
+        }
+        selections.append(entry)
+        print(
+            f"Mix state={weight},event={event_mix},scale={decoder_scale}: "
+            f"val {entry['mean_spell_f1']:.5f}",
+            flush=True,
+        )
+    best = min(
+        selections,
+        key=lambda r: (
+            -r["mean_spell_f1"],
+            r["state_weight"],
+            r["event_weight"],
+            r["decoder_scale"],
+        ),
+    )
+    # Save probabilities for reproducible decoder research without fitting on validation labels.
+    for item, (state, event) in zip(valid, probabilities, strict=True):
+        np.savez_compressed(
+            out / f"validation_{item['game']}_{item['profile']}.npz", state=state, event=event
+        )
+    frozen_parent = copy.deepcopy(parent)
+    atomic_write(out / "parent.json", json_bytes(frozen_parent))
+    provenance = {
+        "config_sha256": sha256(args.config),
+        "parent_sha256": sha256(parent_path),
+        "parent_config_sha256": sha256(ROOT / cfg["parent_config"]),
+        "source_sha256": {
+            str(p.relative_to(ROOT)).replace("\\", "/"): sha256(p)
+            for p in (ROOT / "src/mtah").glob("*.py")
+        },
+        "helper_sha256": {
+            p: sha256(ROOT / p)
+            for p in (
+                "tools/temporal_model.py",
+                "tools/prepare_temporal.py",
+                "tools/train_temporal.py",
+                "tools/train_temporal_v2.py",
+                "tools/train_temporal_domain.py",
+                "tools/train_temporal_domain_v1.py",
+                "tools/domain_validation_v1.py",
+                "tools/skillcorner_data.py",
+                "tools/domain_validation.py",
+                "config/skillcorner.toml",
+                "data/external/skillcorner_new/manifest.json",
+                "tools/temporal_losses.py",
+                "tools/train_boundaries.py",
+                "tools/train_supervised.py",
+                "tools/benchmark_idsse.py",
+            )
+        },
+        "torch_version": str(torch.__version__),
+        "device": device,
+        "bar_ath_labels_read": False,
+        "bar_ath_data_read": False,
+        "test_games_read": False,
+    }
+    provenance["additional_training_games_skillcorner"] = source_cfg["train_games"]
+    provenance["additional_validation_games_skillcorner"] = source_cfg["validation_games"]
+    provenance["excluded_skillcorner_test_games"] = source_cfg["test_games"]
+    provenance["warm_start_model_sha256"] = sha256(warm_dir / "model.json")
+    provenance["warm_start_weights_sha256"] = sha256(warm_dir / "weights.pt")
+    metadata = {
+        "config_path": args.config,
+        "config": cfg,
+        "features": names,
+        "mean": mean.tolist(),
+        "scale": scale.tolist(),
+        "state_weight": best["state_weight"],
+        "event_weight": best["event_weight"],
+        "decoder_scale": best["decoder_scale"],
+        "selected_epoch": best_epoch,
+        "weights_sha256": sha256(out / "weights.pt"),
+        "frozen_parent_sha256": sha256(out / "parent.json"),
+        "provenance": provenance,
+    }
+    atomic_write(out / "model.json", json_bytes(metadata))
+    report = {
+        "selection": selections,
+        "epoch_history": history,
+        "domain_validation_history": domain_history,
+        "warm_start_validation_idsse": baseline_idsse,
+        "warm_start_validation_domain": baseline_domain,
+        "warm_start_validation_domain_rows": baseline_domain_rows,
+        "selected_utility": best_utility,
+        "selected_epoch": best_epoch,
+        "selection_policy": (
+            "Maximize IDSSE spellF1, constrain partial-domain accuracy drop <=0.005; "
+            "IDSSE drop capped at 0.005; warm epoch 0 is eligible"
+        ),
+        "training_games_by_provider": {
+            "IDSSE": cfg["train_games"],
+            "SkillCorner": source_cfg["train_games"],
+        },
+        "learning_curve": learning_curve,
+        "learned_parameters": sum(p.numel() for p in net.parameters()),
+        "selected": best,
+        "model_sha256": sha256(out / "model.json"),
+        "provenance": provenance,
+        "competition_accuracy_measured": False,
+        "selected_final_competition_model": None,
+    }
+    atomic_write(out / "training_report.json", json_bytes(report))
+    atomic_write(
+        out / "test_freeze.json",
+        json_bytes(
+            {
+                "model_sha256": sha256(out / "model.json"),
+                "weights_sha256": sha256(out / "weights.pt"),
+                "report_sha256": sha256(out / "training_report.json"),
+                "frozen_before_test_evaluation": True,
+                "test_previous_exposure": cfg["test_previous_exposure"],
+            }
+        ),
+    )
+    print(
+        f"Frozen epoch {best_epoch}, validation {best['mean_spell_f1']:.5f}; no test games fitted",
+        flush=True,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

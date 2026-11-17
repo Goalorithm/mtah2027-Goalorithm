@@ -1,0 +1,6 @@
+# Team tooling on top of the pipeline: tests, linting, the commit guard, notebooks in VS Code.
+-r requirements-team.txt
+pytest==8.3.5
+ruff==0.11.13
+pre-commit==4.2.0
+ipykernel==6.29.5

@@ -1,0 +1,17 @@
+# Tech 3, Soal 3. Sustained close control with retrospective confirmation.
+team_name = "Goalorithm"
+[dead_ball]
+method = "no_ball_window"
+window = 50
+[possession]
+method = "hold_to_switch"
+min_frames = 15
+initial_min_frames = 3
+max_control_gap_frames = 2
+control_m = 2.5
+advantage_m = 0.5
+control_ball_mps = 15.0
+backdate_switch = true
+max_gap = 25
+max_ball_speed_mps = 45.0
+margin_m = 0.5

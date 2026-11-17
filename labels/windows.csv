@@ -1,0 +1,8 @@
+jendela,frame_awal,frame_akhir,split,pelabel
+PUBLIK,11185,18684,kalibrasi,-
+V1,25000,32499,dev,-
+V2,50000,57499,dev,-
+V3,75000,82499,holdout,-
+V4,120000,127499,dev,-
+V5,145000,152499,holdout,-
+V6,170000,177499,dev,-

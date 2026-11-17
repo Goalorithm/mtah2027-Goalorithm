@@ -1,0 +1,4 @@
+# Optional local neural training. Install after requirements-dev.txt.
+# Windows/Linux CUDA 12.8: pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cu128
+# CPU evaluation can use the official CPU index instead.
+torch==2.9.1

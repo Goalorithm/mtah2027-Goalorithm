@@ -1,0 +1,41 @@
+# Frozen state classifier plus supervised directed handovers, with exposed test games.
+team_name = "Goalorithm"
+[dead_ball]
+method = "supervised"
+[possession]
+method = "supervised"
+[supervised]
+model_path = "outputs/supervised_boundary_dense/model.json"
+[supervised.features]
+max_gap = 25
+max_ball_speed_mps = 45.0
+distance_cap_m = 30.0
+gap_cap_frames = 250
+windows = [5, 15, 25, 75]
+slow_player_mps = 1.0
+moving_ball_mps = 3.0
+player_speed_scale_mps = 12.0
+motion_lag_frames = 5
+interactions = true
+contact_radii_m = [0.75, 1.5, 2.5]
+interaction_offsets = [-25, -10, -3, 3, 10, 25]
+[supervised.training]
+train_games = ["J03WOH", "J03WOY", "J03WPY"]
+validation_games = ["J03WQQ", "J03WR9"]
+test_games = ["J03WMX", "J03WN1"]
+test_set_previous_exposure = "reused_after_v1_v2_v3_joint; not an untouched holdout"
+seed = 20261111
+stride = 10
+max_iter = 240
+max_leaf_nodes = 63
+learning_rate = 0.06
+l2_regularization = 12.0
+min_samples_leaf = 20
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+decoder_scales = [0.3]
+[supervised.boundary_training]
+parent_config = "config/exp_supervised_v3.toml"
+target_radius_frames = 1
+potential_weights = [0.0, 0.5, 1.0, 1.5, 2.0]

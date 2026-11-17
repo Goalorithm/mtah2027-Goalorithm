@@ -1,0 +1,15 @@
+# Tech 2, Soal 1. Frozen rule assumptions; not selected on BAR-ATH public labels.
+team_name = "Goalorithm"
+[dead_ball]
+method = "out_of_bounds"
+margin_m = 0.5
+outside_confirm_frames = 2
+inside_confirm_frames = 3
+outside_memory_frames = 125
+include_missing = true
+window = 50
+max_gap = 25
+max_ball_speed_mps = 45.0
+[possession]
+method = "nearest_majority"
+window = 50

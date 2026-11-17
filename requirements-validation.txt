@@ -1,0 +1,5 @@
+# SoccerTrack v2, the third label source (tools/prepare_soccertrack.py,
+# tools/prepare_atd_soccertrack.py, tools/evaluate_atd_soccertrack.py). Needed to refit the
+# models; not needed to regenerate the submission from the released weights.
+huggingface_hub==2.4.0
+ijson==3.6.0

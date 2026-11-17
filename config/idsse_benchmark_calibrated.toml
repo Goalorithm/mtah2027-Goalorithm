@@ -1,0 +1,6 @@
+model_configs = ["config/exp_supervised_joint.toml", "config/exp_supervised_calibrated.toml"]
+dropout_fraction = 0.4
+dropout_mean_frames = 25
+coordinate_noise_std_m = 0.15
+seed = 20261111
+bootstrap_draws = 500

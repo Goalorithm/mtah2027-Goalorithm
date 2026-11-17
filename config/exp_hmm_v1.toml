@@ -1,0 +1,54 @@
+# Tech 1 candidate. Fixed initial settings, not selected using public ground truth.
+# Run: python -m mtah.predict --config config/exp_hmm_v1.toml --name exp_hmm_v1
+team_name = "Goalorithm"
+
+[dead_ball]
+method = "hmm"
+
+[possession]
+method = "hmm"
+
+[hmm]
+# Soften correlated frame evidence relative to state-switch costs. This requires
+# sustained support for a change instead of treating adjacent video frames as independent.
+emission_scale = 0.1
+# State order H, A, D; rows are previous state, columns are next state.
+transition = [[0.999, 0.0005, 0.0005], [0.0005, 0.999, 0.0005], [0.0008, 0.0008, 0.9984]]
+initial = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333]
+
+# Interpolation needs observed endpoints inside the same half.
+max_gap = 25
+max_interp_speed_mps = 45.0
+interpolated_weight = 0.35
+
+# Soft possession evidence weakens when the nearest player is far from the ball.
+distance_scale_m = 2.0
+control_distance_m = 3.0
+distance_cap_m = 30.0
+evidence_clip = 3.0
+team_weight = 1.5
+
+# Soft dead-ball evidence. Missing tracking alone is not a hard D label.
+margin_m = 0.5
+missing_window = 50
+slow_player_mps = 1.0
+moving_player_mps = 2.0
+still_ball_mps = 0.75
+moving_ball_mps = 3.0
+max_ball_speed_mps = 45.0
+visible_weight = 2.0
+missing_weight = 1.0
+outside_weight = 6.0
+slow_weight = 1.5
+moving_weight = 1.0
+still_weight = 1.0
+ball_motion_weight = 1.0
+
+# Automatic phase tags are weak evidence; set pieces and goals do not copy to labels.
+tagging_weight = 0.4
+offensive_codes = ["BUILD UP", "PROGRESSION", "CREATING CHANCES", "ATTACKING TRANSITION", "LONG BALL", "BALL IN FINAL THIRD", "BALL IN THE BOX", "PLAYERS IN THE BOX"]
+defensive_codes = ["DEFENDING IN ATTACKING THIRD", "DEFENDING IN MIDDLE THIRD", "DEFENDING IN DEFENSIVE THIRD", "DEFENSIVE TRANSITION"]
+
+[hmm.team_aliases]
+H = ["Barcelona", "FC Barcelona"]
+A = ["Atletic Club", "Athletic Club"]
