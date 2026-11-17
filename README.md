@@ -44,16 +44,22 @@ unpack the `tactical/` folder of the bundle into `data/`, or point `MTAH_DATA_DI
 python3.11 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-team.txt
+python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -e .
-python -m mtah.predict --config config/final.toml      # -> outputs/Goalorithm.csv
+python tools/predict_temporal.py       # -> outputs/Goalorithm.csv
 ```
 
-`config/final.toml` loads the committed joint checkpoint in [models/](models/README.md), which
-was trained only on external IDSSE matches; no download or training is needed. The command
-validates the file with the organisers' checks and prints its sha256; the submitted file is
-`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`. To rebuild the checkpoint from the pinned IDSSE data first, follow
+The final model is a TCN blended with the joint tree model, both trained only on external IDSSE
+matches and committed in [models/](models/README.md), so no download or training is needed. The
+script hides any GPU on purpose: CUDA arithmetic can differ from CPU, and the file has to come out
+identical. It validates the result with the organisers' checks and prints its sha256; the
+submitted file is `dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`. To rebuild the checkpoints from the pinned IDSSE data first, follow
 [models/README.md](models/README.md). The approach is described in the technical document,
 [docs/Goalorithm.md](docs/Goalorithm.md).
+
+The tree model alone needs no PyTorch: `python -m mtah.predict --config config/final.toml`
+regenerates the earlier joint-only file
+(`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`).
 
 On Windows machines where policy blocks `pip.exe`, keep the `python -m pip` form shown above.
 `python -m mtah.predict` without `--config` still reproduces the organisers' `baseline_smooth50`.

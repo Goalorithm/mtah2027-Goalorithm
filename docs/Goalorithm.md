@@ -6,10 +6,11 @@ Team Goalorithm · Repository: <https://github.com/Goalorithm/mtah2027-Goalorith
 
 Every frame of the FC Barcelona (H) vs Athletic Club (A) tactical video gets one label, H, A or
 D, and we write X only outside the two halves. The final system reads nothing but the automatic
-tracking. It turns each frame into geometry and motion features, scores them with two
-gradient-boosted classifiers fitted on public Bundesliga matches (IDSSE, CC BY 4.0), then decodes
-each half with Viterbi so that a possession has to earn both its start and its end. One classifier
-estimates the state (H, A or D); the other estimates whether possession is changing hands.
+tracking. It turns each frame into geometry and motion features and scores them twice: once with
+gradient-boosted trees and once with a temporal convolutional network (TCN) that sees about five
+seconds either side. We average the two, then decode each half with Viterbi so that a possession
+has to earn both its start and its end. Both models were trained on public Bundesliga matches
+(IDSSE, CC BY 4.0) and nothing else.
 
 We didn't fit, tune, calibrate or select anything on the provided match, its video, its public
 5-minute ground truth or any human-produced data about it.
@@ -27,20 +28,23 @@ with a deterministic decision tree on tracking, but their method assumes a track
 in-play flag, and they name both as its main limitation [1, §4]. Our data has neither: the ball is
 missing on 41% of graded frames and nothing in the tracking says when play stops. We still wrote
 rule variants (`out_of_bounds`, `set_piece_restart`, `hold_to_switch`) and a hand-specified HMM.
-They stay runnable as baselines. The HMM and the baseline trail the learned model on IDSSE
+They stay runnable as baselines. The HMM and the baseline trail the learned models on IDSSE
 (Section 6), and we only checked the rule variants on partial Metrica anchors, where they did
 worse than the baseline.
 
-We trained temporal convolutional networks [6, 7] on the same external matches too, and on IDSSE
-validation they beat the trees. They need a GPU, though, and in our runs CUDA and CPU probabilities
-differed by up to about 0.001 with TF32 enabled; since the repository has to regenerate the
-submitted file byte for byte, that settled it for this submission.
+For most of the project we expected to submit the trees alone. Our TCN runs had been on a GPU, and
+CUDA probabilities differed from CPU ones by up to about 0.001 with TF32 on, which is a problem
+when the repository has to regenerate the submitted file byte for byte. On the deadline evening we
+retrained the TCN on a laptop CPU, which took 36 minutes, and then tested whether the CPU thread
+count changes anything: across 1, 4 and 14 threads the probabilities moved by at most 1.3e-6 and
+not one decoded frame changed, out of roughly 870,000 validation frames. That made the TCN safe to
+ship on CPU, so the final system blends both models and its reproduction script hides any GPU.
 
 ### 2.1 Features
 
-All features come from tracking and are computed per half, so no window, interpolation or history
-crosses half-time. Ball gaps of up to 25 frames get linear interpolation when the implied speed
-stays under 45 m/s.
+Both models read the same 93 features, all from tracking and computed per half, so no window,
+interpolation or history crosses half-time. Ball gaps of up to 25 frames get linear interpolation
+when the implied speed stays under 45 m/s.
 
 - Ball: observed or interpolated, frames since the last and until the next observation, speed,
   5-frame net motion, turning angle and acceleration.
@@ -49,32 +53,43 @@ stays under 45 m/s.
 - Player–ball contact: for radii of 0.75, 1.5 and 2.5 m, how long ago each team was last that close
   and how soon it will be next; also second-nearest distance, approach speed, velocity alignment
   and team distances at offsets of ±3, ±10 and ±25 frames. The radii sit around the 0.5–1 m
-  possession zones of [1], and the model decides how much each one matters.
+  possession zones of [1], and the models decide how much each one matters.
 - Context: player speeds, how many players are nearly still, tracked fraction, ball distance to
   the pitch edge.
 
-The model never learns which club is which. Each training row also appears with the teams
-swapped, and at inference we average the probabilities from both orientations.
+Neither model learns which club is which. The trees train on every row twice, once with the teams
+swapped, and at inference both models average their probabilities over the two orientations.
 
-### 2.2 Models and decoder
+### 2.2 The trees
 
 The state classifier is scikit-learn's `HistGradientBoostingClassifier`, a histogram method in
 the style of [5], with 220 iterations, 31 leaves, learning rate 0.07, L2 of 8, seed 20261111 and a
-single thread; short possessions and frames near transitions carry extra weight. It uses 93
-features. Selection took the highest validation score, which was this v3 body; a
-possession-balanced variant finished 0.0009 behind, far too close to call either way. A second
-classifier with 160 iterations
-predicts handovers, trained on frames within ±2 of a possession change in the training matches.
-We export both as JSON trees and evaluate them in NumPy, which reproduces scikit-learn's
-probabilities exactly.
+single thread; short possessions and frames near transitions carry extra weight. A second
+classifier with 160 iterations predicts handovers, trained on frames within ±2 of a possession
+change in the training matches. We export both as JSON trees and evaluate them in NumPy, which
+reproduces scikit-learn's probabilities exactly. On validation this "joint" model beat a
+possession-balanced variant by 0.0009, which is far too close to call either way, and its
+handover classifier lifted it from 0.6448 to 0.6657.
 
-Decoding runs log-space Viterbi over H, A and D [4], one half at a time. We count the initial and
-transition probabilities on the three training matches, and the handover classifier adds a
-potential to H↔A moves. That leaves two numbers to choose, the emission scale from
-{0.3, 1, 3, 10} and the handover weight from {0, 0.5, 1}; mean spellF1 on two separate validation
-matches, averaged over three input profiles, picked both. The winner was scale 0.3 with handover
-weight 1.0, at a mean validation spellF1 of 0.6657. Without the handover potential the same body
-scored 0.6448, so the handover classifier earns its place.
+### 2.3 The TCN
+
+The network stacks non-causal dilated 1-D convolutions over the 93 features: 64 channels,
+dilations 1, 2, 4, 8, 16 and 32, about 160,000 parameters and a reach of 126 frames on each side.
+It has two heads, one for the state (H, A or D) and one for handovers. Training ran 35 epochs of
+220 steps on batches of sixteen 256-frame windows from the same three training matches and the
+same input profiles as the trees, with learning rate 0.001, weight decay 0.01, a handover-loss
+weight of 0.2 and seed 20261114. Validation spellF1 climbed from 0.720 at epoch 5 to 0.741 at
+epoch 30, then slipped to 0.740 at epoch 35, so we kept epoch 30.
+
+### 2.4 Blending and decoding
+
+Decoding runs log-space Viterbi over H, A and D [4], one half at a time, with initial and
+transition probabilities counted on the three training matches and a handover potential on H↔A
+moves. On the validation matches we chose how much of the state and handover probabilities
+should come from the TCN (state share from {0, 0.25, 0.5, 0.75, 1}, handover share from {0, 0.5})
+and the emission scale (0.3 or 1). An even 50/50 blend on both heads at scale 0.3 won with a mean
+validation spellF1 of 0.7439. The trees alone had 0.6657, and handing the state entirely to the
+TCN gave 0.7382, so each model covers some of the other's mistakes.
 
 ## 3. Assets used and dropped
 
@@ -93,10 +108,10 @@ scored 0.6448, so the handover classifier earns its place.
 | IDSSE [9]: DFL/Sportec official tracking of 7 Bundesliga matches, CC BY 4.0, files pinned by SHA-256 (PySport mirror, revision `a715a38`) | Training (3 matches), validation (2), test (2) | Provider channels `BallStatus` (dead gives D) and `BallPossession` (H or A), produced by DFL/Sportec | 425,961 / 289,155 / 287,528 labelled frames |
 | Metrica Sports sample data, games 1 and 2 (pinned commit) | Partial evaluation only | Team of each PASS event at its start frame | 798 and 964 anchors |
 
-We didn't create or correct a single label. Training takes every fifth frame, runs it through
-three input profiles (clean; synthetic ball dropout, a Markov process hiding 40% of frames in gaps
-averaging 25 frames; dropout plus 0.15 m coordinate jitter) and adds the team-swapped copy, which
-comes to 511,164 rows. None of it is from the provided match.
+We didn't create or correct a single label. Every training input goes through three profiles:
+clean; synthetic ball dropout, a Markov process hiding 40% of frames in gaps averaging 25 frames;
+and dropout plus 0.15 m coordinate jitter. For the trees we take every fifth frame and add the
+team-swapped copy, which comes to 511,164 rows. None of it is from the provided match.
 
 The Metrica sample repository has no explicit licence; its README only asks users to be
 responsible with the data. We used it for a partial sanity check, never for training or for
@@ -104,7 +119,7 @@ choosing the final model, and the submission doesn't depend on it.
 
 ## 5. Possession rules implemented
 
-The model learns the provider's mechanical definitions, D whenever the ball is out of play and
+The models learn the provider's mechanical definitions, D whenever the ball is out of play and
 otherwise the team that owns it, so most of our line-drawing lives in the decoder.
 
 Loose balls, deflections and aerial duels don't get a rule of their own. Switching teams costs
@@ -114,7 +129,7 @@ challenge's "possession stays with the last team that had it", and it agrees wit
 touch counts only when the ball changes direction or speed.
 
 We wrote no set-piece rules either: the D→H and D→A transitions, together with what happens right
-after the restart, decide who restarts. For dead balls the model looks at ball position and
+after the restart, decide who restarts. For dead balls the models look at ball position and
 motion, at how the ball data goes missing and at whether players have slowed down. A missing ball
 on its own isn't treated as dead.
 
@@ -131,24 +146,24 @@ re-evaluation rather than an untouched holdout.
 |---|---|---|---|
 | Baseline (nearest player + majority vote) | 0.296 | 0.248 | 0.244 |
 | Hand-specified HMM v2 | 0.278 | 0.233 | 0.213 |
-| Joint (final) | **0.720** | **0.604** | **0.594** |
+| Joint trees | 0.720 | 0.604 | 0.594 |
+| **TCN + trees (final)** | **0.802** | **0.688** | **0.675** |
 
-Per match, the joint model scored 0.723 and 0.717 on clean input and never dropped below 0.586 on
-the corrupted profiles; the other two models never got above 0.31. The organisers put the noise
-band for spellF1 at about 0.04 on a full match, and the gap here is roughly ten times that.
+The final blend beat the trees on all six match-and-profile rows, by 0.06 to 0.10. Per match it
+scored 0.787 and 0.817 on clean input and never dropped below 0.654; the organisers put the spellF1
+noise band at about 0.04 on a full match. It also predicts 435 and 440 possessions against the
+provider's 511 and 500, closer than the trees' 417 and 437, though short possessions are still
+the main loss (Section 7).
 
 The baseline's numbers come with a caveat that cuts against it. It calls D only when the ball
 disappears, and in IDSSE the ball never really disappears, so its dead-ball F1 is 0.00 on clean
-input. The HMM goes wrong the other way: it predicts about 200 possessions per match where the
-provider has about 500, merging everything. Even the joint model predicts 417 and 437 possessions
-against 511 and 500, which is the short-possession weakness from Section 7.
+input. The HMM goes wrong the other way, predicting about 200 possessions per match where the
+provider has about 500.
 
-This round's selection used only the validation matches J03WQQ and J03WR9, where the chosen
-configuration averaged 0.6657 over the three profiles. Earlier iterations had seen the test
-matches, which is why we call the table a re-evaluation.
-
-We have no accuracy figure for the provided match. The public 5-minute window served one purpose:
-checking that the file was well formed and the frames aligned.
+Selection used only the validation matches J03WQQ and J03WR9 (0.7439 for the final blend, 0.6657
+for the trees). Earlier iterations had seen the test matches, which is why we call the table a
+re-evaluation. We have no accuracy figure for the provided match. The public 5-minute window
+served one purpose: checking that the file was well formed and the frames aligned.
 
 ## 7. Limitations and what we'd do next
 
@@ -169,38 +184,43 @@ the plain baseline, at about 92–93% against 94–96%, even though they're far 
 Anchors cover passes only and [1] reports 10–15% disagreement between event annotators, so we
 don't treat them as decisive; the gap still warns about cross-provider transfer.
 
+Reproducing the TCN exactly depends on running it on a CPU. We tested thread counts on one laptop,
+not different CPU vendors, so we'd like to confirm the output on an AMD and an Intel machine.
+
 With more time we'd add formation-based set-piece triggers as dead-ball evidence and
-Savitzky–Golay ball smoothing [1], try ball-trajectory inference for missing-ball stretches [3],
-make the TCN deterministic on CPU and look for labelled automatic-tracking data from other
-providers.
+Savitzky–Golay ball smoothing [1], try ball-trajectory inference for missing-ball stretches [3]
+and look for labelled automatic-tracking data from other providers.
 
 ## 8. Reproduction
 
-The repository ships the trained checkpoint (`models/supervised_joint/model.json`, SHA-256
-`724475e5…3e85`), so regenerating the submission takes one command after installation:
+The repository ships both trained models (`models/`), so regenerating the submission takes one
+command after installation:
 
 ```
 python3.11 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
-python -m pip install -r requirements-team.txt && python -m pip install -e .
+python -m pip install -r requirements-team.txt
+python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e .
 # data bundle: unpack tactical/ into data/ (or set MTAH_DATA_DIR)
-python -m mtah.predict --config config/final.toml   # -> outputs/Goalorithm.csv
+python tools/predict_temporal.py                    # -> outputs/Goalorithm.csv, CPU only
 ```
 
-Rebuilding the checkpoint from the pinned IDSSE files first:
+Rebuilding the models from the pinned IDSSE files first:
 
 ```
 python tools/prepare_idsse.py                       # downloads/verifies the pinned IDSSE files
 python tools/train_supervised.py --config config/exp_supervised_v3.toml --out-dir outputs/supervised_v3
 python tools/train_boundaries.py
 python tools/train_supervised.py --config config/exp_supervised_balanced.toml --out-dir outputs/supervised_balanced
-python tools/select_joint.py
-python -m mtah.predict --config config/exp_supervised_joint.toml        # -> outputs/Goalorithm.csv
-python evaluation/validate_submission.py outputs/Goalorithm.csv
+python tools/select_joint.py                        # trees -> outputs/supervised_joint/
+python tools/train_temporal.py                      # TCN  -> outputs/temporal/
 ```
 
-Python 3.11, with every dependency pinned using `==`. Seeds are fixed, training runs on one thread
-and inference uses NumPy only. Two consecutive runs produced the same `Goalorithm.csv`, SHA-256
-`2d063850f6b6be84780333f68000205a4677363ba85d30495b8298f445c25ab2`.
+Then copy `outputs/supervised_joint/model.json` and the five files of `outputs/temporal/` into
+`models/` as listed in `models/README.md`. Python 3.11, with every dependency pinned using `==`.
+Seeds are fixed, the trees train on one thread, and the TCN loader checks the hashes of its weights,
+its teacher and the source files it was trained with. Two consecutive runs produced the same
+`Goalorithm.csv`, SHA-256 `dd610799b8ad715d7371c1dfbc783ba0a484eeb9784696c79f93e14721822af3`.
 
 ## 9. Rules compliance
 

@@ -1,0 +1,7 @@
+{
+  "frozen_before_test_evaluation": true,
+  "model_sha256": "8fddbbecc058e965a3baf43711d2dfa12627cafb4d7b1f329c18f41f6877a8be",
+  "report_sha256": "34baa052d82e704a8a7154ed8ce115c236842275f71b097f691682733ddcccb8",
+  "test_previous_exposure": "reused after earlier models; not an untouched holdout",
+  "weights_sha256": "1292862f64284a70eb6a6ee89a670b966f84c6d1e48fce2ea22e1e3598f29086"
+}
