@@ -5,7 +5,8 @@
 
 Each panel's title shows the frame, the video time, and the ground-truth / predicted label when
 --gt / --pred are given. Output: outputs/frames_<first>_<last>.png (or --out).
-Open the tactical video at the same time (mpv, see docs/PANDUAN_LABEL.md) to compare.
+Drawn from tracking only. Do not check predictions against the video: the organisers'
+rules clarification of 3 November 2026 prohibits it (see docs/RULE_UPDATE.md).
 """
 
 import argparse

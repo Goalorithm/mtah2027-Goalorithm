@@ -77,7 +77,6 @@ evaluation/ starter/ games.py   the organisers' code, unchanged (MIT licence)
 - [docs/SETUP.md](docs/SETUP.md) — menyiapkan laptop dari nol
 - [CONTRIBUTING.md](CONTRIBUTING.md) — alur kerja branch, PR, review
 - [docs/RULE_UPDATE.md](docs/RULE_UPDATE.md) — aturan terbaru dan alur pseudo-label lokal
-- [docs/PANDUAN_LABEL.md](docs/PANDUAN_LABEL.md) — arsip panduan anotasi lama, tidak digunakan
 - [docs/ATURAN_POSSESSION.md](docs/ATURAN_POSSESSION.md) — arsip buku aturan possession tim
 
 The organisers' own documents are kept as shipped: [CHALLENGE.md](CHALLENGE.md),

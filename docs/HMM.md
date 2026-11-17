@@ -154,14 +154,11 @@ check preserves the existing decision. Dev selection cannot overwrite a complete
 at the same output path. These checks protect the local workflow, not against deliberate editing
 of receipt files or use of a different output path.
 
-`tools/suggest_labels.py exp_hmm_v1` generates local model suggestions for review. Its columns are
-deliberately different from reviewed labels (`label_usulan`, `pelabel_tujuan`), so the validation
-converter rejects it. Those suggestions must not be used as model-selection ground truth: doing
-so would measure agreement with the candidate itself. Video inspection is still required to make
-independent reference annotations. Both videos are now available locally; the tactical video has
-passed a full decode and frame-timestamp check. The local review tool that existed then was removed
-after the rule update that prohibits human labels on this match. See
-[DATA_AUDIT.md](DATA_AUDIT.md) for the new asset checks and reviewer instructions.
+Model outputs must not be used as model-selection ground truth: doing so would measure agreement
+with the candidate itself. The former suggestion export and local video review tools were removed:
+the organisers' rules prohibit human labels on this match and checking outputs against the video
+(see [RULE_UPDATE.md](RULE_UPDATE.md)). The tactical video has only passed a full decode and
+frame-timestamp integrity check; see [DATA_AUDIT.md](DATA_AUDIT.md).
 
 ## Limitations and release conditions
 
