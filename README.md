@@ -32,6 +32,8 @@ automatic tracking. It reads only the provided automatic tracking: no video, no 
 recording, no Smart Tagging. Method, training data and limitations:
 [docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).
 
+**Five-seed revision:** balanced external validation increased from 0.7667 to 0.7697; this validation rule alone selected the revision. The refit scores 0.7111 on IDSSE test and 0.7653 on SoccerTrack match 117092 with contested frames assigned to the last owner. The test scores do not choose the model, and the BAR-ATH score is unknown. The CPU export skips the public ground truth.
+
 The video-ball pipeline, its dependent models and training of an HMM on BAR-ATH have been
 excluded from this branch's current file tree. The publication guard reads
 [.github/excluded-paths.txt](.github/excluded-paths.txt); run
@@ -53,11 +55,11 @@ python -m pip install -r requirements-team.txt
 python -m pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -e .
 python tools/restore_release.py        # released model weights -> outputs/
-python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
+python tools/evaluate_atd.py --model-dir outputs/atds5_refit_ensemble --mode competition --name Goalorithm --no-public-check
 ```
 
 This writes `outputs/Goalorithm.csv`, validates it with the organisers' checks and prints its
-sha256 (`10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`). The file is computed
+sha256 (`05f57e08a7517defb3617e417cc914e57d9302f0e6c7191c04c4ce3c88b451c2`). The file is computed
 on CPU and the prediction is run twice and must match exactly. The weights in `release/atd/`
 were fitted on external matches only; `run_atd.cmd` refits them. Method:
 [docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md).

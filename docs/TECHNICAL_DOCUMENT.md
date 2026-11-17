@@ -1,8 +1,8 @@
 # Goalorithm — Technical Document
 
-More than a Hack 2027, Phase 1: Ball Possession. Team Goalorithm. 17 November 2026.
+More than a Hack 2027, Phase 1: Ball Possession. Team Goalorithm. 18 November 2026.
 
-**Submitted file:** `Goalorithm.csv`, 199,319 rows, SHA-256 `10fbac793413867cafaa5bb5dd6739e52c59e8d1429828463adb60370a9bc199`.
+**Submitted file:** `Goalorithm.csv`, 199,319 rows, SHA-256 `05f57e08a7517defb3617e417cc914e57d9302f0e6c7191c04c4ce3c88b451c2`.
 
 **In one paragraph.** The competition tracking is automatic: the organisers report the ball
 missing on 41% of graded frames and about 20.5 tracked objects per frame. Models fitted on the
@@ -58,9 +58,11 @@ the providers define them.
 - **Decoder:** Viterbi over the three states, transitions from the IDSSE and Metrica fitting
   references; emission scale and event weight chosen on validation games of the three sources,
   each source weighted equally.
-- **Ensemble and refit:** three seeds fix the epoch count and the decoder on validation; three
-  seeds are then refitted on fitting plus validation games with both fixed, and their
-  probabilities are averaged before decoding.
+- **Ensemble and refit:** five selection seeds (20261120-20261124), each trained for up to
+  32 epochs, fix the refit length at 24 epochs and the decoder at emission scale 0.2,
+  event weight 0.75. Five seeds are then refitted on fitting data plus the IDSSE/Metrica
+  validation games, with both fixed; their probabilities are averaged before decoding.
+  The SoccerTrack decoder-validation game stays outside fitting.
 
 ## 2. Assets used and dropped
 
@@ -71,7 +73,7 @@ the providers define them.
 | Tactical homography | No | Tracking is already in pitch metres |
 | Broadcast video, tracking and homography | No | Not used by the submitted model |
 | Smart Tagging | No | Not used by the submitted model |
-| Public 5-minute ground truth | Correctness check only | Scored after the file was built; never used to fit, select or tune |
+| Public 5-minute ground truth | No for this revision | Not read during training, selection, testing or CSV export |
 
 ## 3. Training data
 
@@ -104,15 +106,23 @@ No human label of the provided game was created or used.
 All figures use the organisers' scorer on games no fitting step used, measured like automatic
 tracking (middle of every range). Higher is better.
 
-| Check | spellF1 | macroF1 |
-| --- | ---: | ---: |
-| IDSSE test games J03WMX, J03WN1 (2 games, 4 copies) | 0.714 | 0.933 |
-| SoccerTrack v2 match 117092, never fitted or selected on | 0.756 | 0.926 |
-| Validation of the selection ensemble (decoder choice): IDSSE / Metrica / SoccerTrack | 0.743 / 0.737 / 0.820 | |
+| Check | Prior three-seed spellF1 | Five-seed spellF1 | Five-seed macroF1 |
+| --- | ---: | ---: | ---: |
+| Balanced external validation, selection ensembles | 0.7667 | 0.7697 | |
+| IDSSE test games J03WMX, J03WN1 (2 games, 4 copies) | 0.7143 | 0.7111 | 0.9322 |
+| SoccerTrack v2 test match 117092, contested frames to last owner | 0.7561 | 0.7653 | 0.9262 |
 
-A model of the same kind fitted on clean, unmodified IDSSE tracking scored 0.385 on IDSSE test
-copies re-measured in the same way, which is why the re-measurement is the core of the method. Public 5-minute window, scored once after the file was built as a correctness
-check: spellF1 0.622 (macroF1 0.911).
+Selection validation by source (IDSSE / Metrica / SoccerTrack): previously
+0.7435 / 0.7367 / 0.8200; now 0.7416 / 0.7315 /
+0.8361. The balanced gain is 0.0030,
+mainly from SoccerTrack; IDSSE and Metrica validation regress slightly. This small observed
+gain is not a statistical-significance claim. The predeclared adoption threshold was >0.767,
+using equally weighted external sources; neither test results nor BAR-ATH labels chose it.
+The existing external test games have been scored before; they are not a new untouched holdout.
+
+SoccerTrack match 117093 is decoder validation and is excluded from the test row above.
+The public BAR-ATH ground truth was not read or scored for this revision. The BAR-ATH score
+remains unknown. Passing code checks or repeated CPU export does not establish its accuracy.
 
 ## 6. Limitations
 
@@ -138,7 +148,7 @@ pip install -r requirements-team.txt
 pip install -r requirements-temporal.txt --index-url https://download.pytorch.org/whl/cpu
 pip install -e .
 python tools/restore_release.py
-python tools/evaluate_atd.py --model-dir outputs/atds_refit_ensemble --mode competition --name Goalorithm
+python tools/evaluate_atd.py --model-dir outputs/atds5_refit_ensemble --mode competition --name Goalorithm --no-public-check
 ```
 
 This writes `outputs/Goalorithm.csv` and prints its SHA-256. The file is always computed on CPU

@@ -23,19 +23,29 @@ if errorlevel 1 goto failure
 if errorlevel 1 goto failure
 %PY% tools\train_atd.py --out-dir outputs\atds_s3 --set epochs=32 --set training_seed=20261122
 if errorlevel 1 goto failure
-%PY% tools\ensemble_atd.py atds atds_s2 atds_s3 --out-dir outputs\atds_ensemble --soccertrack-validation
+%PY% tools\train_atd.py --out-dir outputs\atds_s4 --set epochs=32 --set training_seed=20261123
 if errorlevel 1 goto failure
-%PY% tools\evaluate_atd.py --model-dir outputs\atds_ensemble --mode test --legacy-dir ""
+%PY% tools\train_atd.py --out-dir outputs\atds_s5 --set epochs=32 --set training_seed=20261124
 if errorlevel 1 goto failure
-%PY% tools\train_atd.py --out-dir outputs\atds_refit --refit-from outputs\atds_ensemble
+%PY% tools\ensemble_atd.py atds atds_s2 atds_s3 atds_s4 atds_s5 --out-dir outputs\atds5_ensemble --soccertrack-validation
 if errorlevel 1 goto failure
-%PY% tools\train_atd.py --out-dir outputs\atds_refit_s2 --refit-from outputs\atds_ensemble --set training_seed=20261121
+%PY% tools\train_atd.py --out-dir outputs\atds5_refit --refit-from outputs\atds5_ensemble
 if errorlevel 1 goto failure
-%PY% tools\train_atd.py --out-dir outputs\atds_refit_s3 --refit-from outputs\atds_ensemble --set training_seed=20261122
+%PY% tools\train_atd.py --out-dir outputs\atds5_refit_s2 --refit-from outputs\atds5_ensemble --set training_seed=20261121
 if errorlevel 1 goto failure
-%PY% tools\ensemble_atd.py atds_refit atds_refit_s2 atds_refit_s3 --out-dir outputs\atds_refit_ensemble --decoder-from outputs\atds_ensemble
+%PY% tools\train_atd.py --out-dir outputs\atds5_refit_s3 --refit-from outputs\atds5_ensemble --set training_seed=20261122
 if errorlevel 1 goto failure
-%PY% tools\evaluate_atd.py --model-dir outputs\atds_refit_ensemble --mode competition --name Goalorithm
+%PY% tools\train_atd.py --out-dir outputs\atds5_refit_s4 --refit-from outputs\atds5_ensemble --set training_seed=20261123
+if errorlevel 1 goto failure
+%PY% tools\train_atd.py --out-dir outputs\atds5_refit_s5 --refit-from outputs\atds5_ensemble --set training_seed=20261124
+if errorlevel 1 goto failure
+%PY% tools\ensemble_atd.py atds5_refit atds5_refit_s2 atds5_refit_s3 atds5_refit_s4 atds5_refit_s5 --out-dir outputs\atds5_refit_ensemble --decoder-from outputs\atds5_ensemble
+if errorlevel 1 goto failure
+%PY% tools\evaluate_atd.py --model-dir outputs\atds5_refit_ensemble --mode test --legacy-dir ""
+if errorlevel 1 goto failure
+%PY% tools\evaluate_atd_soccertrack.py --model-dir outputs\atds5_refit_ensemble --legacy-dir ""
+if errorlevel 1 goto failure
+%PY% tools\evaluate_atd.py --model-dir outputs\atds5_refit_ensemble --mode competition --name Goalorithm --no-public-check
 if errorlevel 1 goto failure
 echo Done: outputs\Goalorithm.csv
 pause

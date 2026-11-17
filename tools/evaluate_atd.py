@@ -145,6 +145,11 @@ def main(argv=None):
     parser.add_argument("--legacy-dir", default="outputs/temporal")
     parser.add_argument("--name", default=None, help="competition CSV name under outputs/")
     parser.add_argument(
+        "--no-public-check",
+        action="store_true",
+        help="write and validate the competition CSV without reading any BAR-ATH reference labels",
+    )
+    parser.add_argument(
         "--device",
         choices=["cpu", "cuda", "auto"],
         default=None,
@@ -212,7 +217,6 @@ def main(argv=None):
         path = OUTPUTS_DIR / f"{args.name or 'exp_' + out.name}.csv"
         write_submission(path, first)
         strict_submission(path, N_FRAMES)
-        public = pm.evaluate(read_codes(PUBLIC_GT), first, bootstrap_n=0)
         report.update(
             prediction=str(path.relative_to(ROOT)).replace("\\", "/"),
             prediction_sha256=sha256(path),
@@ -221,20 +225,26 @@ def main(argv=None):
             torch_version=str(torch.__version__),
             frames=N_FRAMES,
             structure=structure(first, runs),
-            public_window_correctness_check={
+            public_window_correctness_check=None,
+            bar_ath_reference_labels_read=False,
+        )
+        if not args.no_public_check:
+            public = pm.evaluate(read_codes(PUBLIC_GT), first, bootstrap_n=0)
+            report["public_window_correctness_check"] = {
                 "note": "17 possessions; never used to choose a model, epoch or decoder",
                 "spell_f1_mean": public["spell_f1_mean"],
                 "macro_f1": public["macro_f1"],
                 "per_class": public["per_class"],
-            },
-        )
+            }
+            report["bar_ath_reference_labels_read"] = True
         print(json.dumps({k: report[k] for k in ("structure", "prediction_sha256")}))
         check = report["public_window_correctness_check"]
-        print(
-            f"Public window check: spellF1 {check['spell_f1_mean']:.4f}, "
-            f"macroF1 {check['macro_f1']:.4f}",
-            flush=True,
-        )
+        if check is not None:
+            print(
+                f"Public window check: spellF1 {check['spell_f1_mean']:.4f}, "
+                f"macroF1 {check['macro_f1']:.4f}",
+                flush=True,
+            )
     atomic_write(out / f"{args.mode}_report.json", json_bytes(report))
     return 0
 
