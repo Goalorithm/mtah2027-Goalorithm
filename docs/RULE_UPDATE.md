@@ -25,9 +25,29 @@ kalibrasi berlabel, maupun validasi. Label manusia dari pertandingan lain diperb
 asal data yang dapat diakses panitia. Pada branch ini, fitting supervised maupun unsupervised memakai data eksternal.
 Pseudo-label inferensi lokal bukan acuan untuk fitting, kalibrasi, atau pemilihan model.
 
-FAQ upstream masih memuat pembatasan pengunggahan video/dataset/cuplikannya ke LLM cloud.
-Pengguna menginformasikan adanya izin AI terbaru; implementasi ini memakai komputasi lokal
-sehingga tidak memerlukan pengunggahan materi pertandingan ke layanan AI.
+## Klarifikasi resmi panitia (email 3 November 2026)
+
+Email panitia *"Clarification of the rules for the Initial Challenge"* menyatakan bahwa aturannya
+mengesampingkan dokumentasi, email sebelumnya, dan jawaban individual.
+
+Tidak diperbolehkan:
+
+- memeriksa output terhadap video;
+- label tangan, data buatan manusia, atau data lain yang dibuat manual tentang game ini;
+- mengunggah data yang disediakan ke layanan AI;
+- training, fitting, atau kalibrasi algoritma pada data ground-truth possession atau video
+  yang disediakan.
+
+Diperbolehkan: pemeriksaan otomatis yang hanya memakai data yang disediakan; menonton atau
+memeriksa data dan video untuk memahami definisi possession; memakai video, tracking, Smart
+Tagging, atau data hasil algoritma lain sebagai input selama algoritma tidak dilatih pada ground
+truth atau video yang disediakan; menyertakan berkas tahap antara; serta memakai dataset yang
+hak pakainya dimiliki. Training/retraining dan tuning parameter hanya memakai data eksternal.
+
+Implementasi ini berjalan dengan komputasi lokal dan tidak mengunggah materi pertandingan ke
+layanan AI. Alat peninjauan video dan saran label manual (`tools/suggest_labels.py`,
+`src/mtah/video.py`, penyimpanan tinjauan di `src/mtah/review.py`, `docs/PANDUAN_LABEL.md`)
+dikeluarkan dan dicatat di `.github/excluded-paths.txt`.
 
 Arahan sebelumnya untuk menyelesaikan enam jendela dengan anotasi manusia sudah tidak berlaku.
 Sumber panitia di working tree tidak ditimpa, dan perubahan pengguna pada `RULES.md` dipertahankan.
