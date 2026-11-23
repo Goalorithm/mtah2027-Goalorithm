@@ -1,3 +1,6 @@
+<img width="790" height="616" alt="image" src="https://github.com/user-attachments/assets/527665d2-8aca-45f3-807d-8293531331d4" />
+
+
 # Goalorithm ? More than a Hack 2027, Phase 1: Ball Possession
 
 Team Goalorithm's entry to [More than a Hack 2027](https://github.com/metrica-sports/more-than-a-hack-2027):
